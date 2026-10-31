@@ -5,8 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-31
+
 ### Fixed
 
+- The README (and so the PyPI project page) showed a package-install quick start; the checkout
+  quick start is back, with `uv tool install dfm-agent` mentioned in one line.
 - On Python 3.12, a command that left a background process holding its output (for example a
   test run that starts a daemon) blocked until its timeout. DFM now reads output pipes itself,
   so it stops waiting when the command exits on every supported Python version.
@@ -25,7 +29,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   only gpt-oss-20b. Model-logic tests no longer depend on whether `mlx` is installed.
 - CI runs on Python 3.12 and 3.13, with actions pinned to commit SHAs.
 - The package is distributed as `dfm-agent` (the command stays `dfm`); install with
-  `uv tool install "dfm-agent[mlx]"`. RepoCanon and RepoKG are released dependencies with
+  `uv tool install dfm-agent`. RepoCanon and RepoKG are released dependencies with
   version bounds instead of pinned Git commits, the sdist contains only what the package ships,
   and a tag push publishes to PyPI through trusted publishing (ADR 0014).
 

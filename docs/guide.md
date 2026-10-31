@@ -13,18 +13,12 @@ Requirements: macOS on Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/
 Apple FM requires Apple Intelligence (`fm available` reports its status). The local coder
 requires the `mlx` extra and a downloaded model.
 
-The package is `dfm-agent`; it installs the `dfm` command:
-
 ```bash
-uv tool install "dfm-agent[mlx]"     # omit [mlx] to install without the local coder
-dfm --version
-dfm doctor                           # models, tools, integrations, policy
+git clone https://github.com/NehharShah/dfm && cd dfm
+uv sync --extra mlx       # omit --extra mlx to install without the local coder
+uv run dfm --version
+uv run dfm doctor         # models, tools, integrations, policy
 ```
-
-Before a PyPI release, or to follow `main`, install from GitHub instead:
-`uv tool install "git+https://github.com/NehharShah/dfm[mlx]"`. Upgrade with
-`uv tool upgrade dfm-agent`. To run from a checkout (`uv run dfm …`), see
-[CONTRIBUTING.md](../CONTRIBUTING.md).
 
 [RepoCanon](https://github.com/NehharShah/repocanon) and [RepoKG](https://github.com/NehharShah/repokg)
 are installed with DFM as released versions. [Reflex](https://github.com/sumervaid/reflex-tui) is
@@ -36,11 +30,11 @@ the `reflex` command when it is on `PATH`.
 DFM does not download models. Download one, then run `setup`:
 
 ```bash
-uvx hf download mlx-community/Qwen3.8-27B-4bit   # about 16 GB; suited to 32 GB+ Macs
-dfm setup --dry-run              # show the choice without writing config
-dfm setup                        # write ~/.config/dfm/config.toml
-dfm models                       # list local models
-dfm models eval Qwen3.8-27B      # run a short coding check
+uv run hf download mlx-community/Qwen3.8-27B-4bit   # about 16 GB; suited to 32 GB+ Macs
+uv run dfm setup --dry-run              # show the choice without writing config
+uv run dfm setup                        # write ~/.config/dfm/config.toml
+uv run dfm models                       # list local models
+uv run dfm models eval Qwen3.8-27B      # run a short coding check
 ```
 
 `setup` reads the Hugging Face cache, estimates memory per model and context size, and selects a
