@@ -17,11 +17,19 @@ jobs:
     # The sandbox, thermal and memory code is macOS-specific; macos-15 runners are Apple Silicon.
     runs-on: macos-15
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # every supported version: asyncio subprocess behaviour differs between them
+        python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      # Actions are pinned to commit SHAs so a moved tag cannot change what runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: "3.12"
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
           enable-cache: true
       - name: Install
         run: uv sync --locked

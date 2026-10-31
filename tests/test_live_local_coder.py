@@ -1,6 +1,7 @@
 """First usable milestone: a real local model fixes a real failing test.
 
-Skipped unless mlx-lm and a local gpt-oss-20b are present. No hosted model is involved.
+Opt-in: set DFM_TEST_MODEL to a local MLX model (see tests/helpers.py). No hosted model is
+involved.
 """
 
 from pathlib import Path
@@ -11,22 +12,13 @@ from dfm.config.writer import set_user_value
 from dfm.models.mlx import mlx_available
 from dfm.orchestration.implement import ImplementOptions, implement
 from dfm.orchestration.runtime import Runtime
+from tests.helpers import LIVE_MODEL_SKIP, live_model
 
-
-def _gpt_oss() -> Path | None:
-    # any Hugging Face cache copy: models--gpt-oss-20b, models--mlx-community--gpt-oss-20b-…
-    hub = Path.home() / ".cache/huggingface/hub"
-    found = sorted(hub.glob("models--*gpt-oss-20b*/snapshots/*/config.json"))
-    return found[0].parent if found else None
-
-
-WEIGHTS = _gpt_oss()
+WEIGHTS = live_model()
 
 
 @pytest.mark.mlx
-@pytest.mark.skipif(
-    not mlx_available() or WEIGHTS is None, reason="needs mlx-lm and a local gpt-oss-20b"
-)
+@pytest.mark.skipif(not mlx_available() or WEIGHTS is None, reason=LIVE_MODEL_SKIP)
 async def test_local_coder_fixes_failing_test(
     tmp_path: Path, calc_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

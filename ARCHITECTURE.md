@@ -94,7 +94,7 @@ sequenceDiagram
         M-->>D: one action (read · search · patch · create · run · test · done · give_up)
         D->>T: execute through policy (ask the developer when required)
         T-->>D: observation (untrusted)
-        D->>T: after an edit, rerun tests; on failure, repair at higher reasoning
+        D->>T: after an edit, rerun tests (on failure, repair at higher reasoning)
     end
     D->>T: verify: tests, type check, lint, CI step, Git guard, structural diff
     D-->>U: report: changes, what was verified, what was not, risks

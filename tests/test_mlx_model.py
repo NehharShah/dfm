@@ -13,6 +13,10 @@ from dfm.models.schema import fm_schema
 from dfm.models.structured import structured
 from dfm.models.tasks import CommitMessage
 from dfm.orchestration.agent import AgentAction
+from tests.helpers import LIVE_MODEL_SKIP, live_model
+
+# The worker is faked; only the live test (skipped on the real check) needs mlx-lm
+pytestmark = pytest.mark.usefixtures("mlx_installed")
 
 HARMONY = "<|channel|>analysis<|message|>think hard<|end|><|start|>assistant<|channel|>final<|message|>def add(a, b):\n    return a + b<|return|>"
 
@@ -155,18 +159,9 @@ async def test_idle_unload(tmp_path: Path, env: ExecutionEnvironment) -> None:
     assert not model.loaded
 
 
-def _local_gpt_oss() -> Path | None:
-    # any Hugging Face cache copy: models--gpt-oss-20b, models--mlx-community--gpt-oss-20b-…
-    hub = Path.home() / ".cache/huggingface/hub"
-    found = sorted(hub.glob("models--*gpt-oss-20b*/snapshots/*/config.json"))
-    return found[0].parent if found else None
-
-
 @pytest.mark.mlx
-@pytest.mark.skipif(
-    not mlx_available() or _local_gpt_oss() is None, reason="needs mlx-lm and a local gpt-oss-20b"
-)
-async def test_live_gpt_oss(tmp_path: Path) -> None:
+@pytest.mark.skipif(not mlx_available() or live_model() is None, reason=LIVE_MODEL_SKIP)
+async def test_live_local_model(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     environ = {"HOME": str(Path.home()), "PATH": "/usr/bin:/bin"}
@@ -177,9 +172,9 @@ async def test_live_gpt_oss(tmp_path: Path) -> None:
         environ=environ,
         dirs=state_dirs({"HOME": str(tmp_path)}),
     )
-    path = _local_gpt_oss()
+    path = live_model()
     assert path is not None
-    model = MLXModel(LocalModelSpec("small", path, "gpt-oss-20b", context=16384), env)
+    model = MLXModel(LocalModelSpec("small", path, path.name, context=16384), env)
     try:
         result = await model.generate(
             GenerateRequest.prompt(

@@ -9,10 +9,16 @@ from dfm.config import ConfigError, DFMConfig, load_config, state_dirs
 from dfm.config.writer import dumps, set_user_value
 from dfm.execution import ExecutionEnvironment
 from dfm.models import GenerateRequest, ModelUnavailable
-from dfm.models.mlx import LocalModelSpec, MLXModel
-from dfm.models.mlx.discovery import GB, choose, describe_dir, discover, mlx_supports, usable
+from dfm.models.mlx import LocalModelSpec, MLXModel, discovery, mlx_available
+from dfm.models.mlx.discovery import GB, choose, describe_dir, discover, usable
 from dfm.models.resources import ModelResourceManager, ResourceSnapshot
 from dfm.routing import Route, RouteDecision, RoutingContext
+
+# Real mlx_supports and mlx_available, captured before any test patches them
+REAL_MLX_SUPPORTS = discovery.mlx_supports
+MLX_INSTALLED = mlx_available()
+
+pytestmark = pytest.mark.usefixtures("mlx_installed")
 
 VM_STAT = """Mach Virtual Memory Statistics: (page size of 16384 bytes)
 Pages free:                               500000.
@@ -58,7 +64,13 @@ def test_discover_and_describe(tmp_path: Path) -> None:
     assert coder.moe and (coder.experts, coder.active_experts) == (32, 4)
     assert round(coder.size_gb) == 11
     assert not usable(found["unsupported"])
-    assert mlx_supports("gpt_oss") and not mlx_supports("")
+
+
+def test_mlx_supports_reads_the_installed_mlx_lm() -> None:
+    assert not REAL_MLX_SUPPORTS("") and not REAL_MLX_SUPPORTS("nonexistent_arch")
+    if not MLX_INSTALLED:
+        pytest.skip("mlx-lm not installed (uv sync --extra mlx)")
+    assert REAL_MLX_SUPPORTS("gpt_oss")
 
 
 def test_memory_math(tmp_path: Path) -> None:

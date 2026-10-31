@@ -87,6 +87,8 @@ def config_reference() -> str:
         "|---|---|---|---|",
     ]
     for key, kind, default, note in rows:
+        # A bare "|" (as in `int | None`) would split the table cell
+        key, kind, default, note = (s.replace("|", "\\|") for s in (key, kind, default, note))
         lines.append(f"| `{key}` | {kind} | `{default}` | {note} |")
     sections = [n for n in DFMConfig.model_fields]
     lines.append(f"\nSections: {', '.join(f'`[{s}]`' for s in sections)}.")

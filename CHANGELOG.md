@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Fixed
+
+- On Python 3.12, a command that left a background process holding its output (for example a
+  test run that starts a daemon) blocked until its timeout. DFM now reads output pipes itself,
+  so it stops waiting when the command exits on every supported Python version.
+- Type checking failed without the optional `mlx` extra.
+- The configuration reference split rows whose type contains `|` (such as `int | None`).
+- A diagram in `ARCHITECTURE.md` did not render on GitHub.
+
+### Changed
+
+- Live model tests are opt-in through `DFM_TEST_MODEL` and work with any local MLX model, not
+  only gpt-oss-20b. Model-logic tests no longer depend on whether `mlx` is installed.
+- CI runs on Python 3.12 and 3.13, with actions pinned to commit SHAs.
+
 ## [0.0.1]
 
 First public release.
@@ -30,6 +45,3 @@ First public release.
 - Versioned JSONL session traces, checkpoints and recovery, per-session metrics.
 - Documentation: guide, architecture, command and configuration references, policy, threat
   model, troubleshooting, ADRs 0001–0013.
-
-[Unreleased]: https://github.com/NehharShah/dfm/compare/v0.0.1...HEAD
-[0.0.1]: https://github.com/NehharShah/dfm/releases/tag/v0.0.1

@@ -344,18 +344,30 @@ class ProcessManager:
         if pty:
             proc, readers = await self._spawn_pty(argv, env, workdir, secret_env, out, on_output)
         else:
-            proc = await asyncio.create_subprocess_exec(
-                *argv,
-                cwd=workdir,
-                env=env.child_env(secret_env),
-                stdin=asyncio.subprocess.PIPE if stdin is not None else asyncio.subprocess.DEVNULL,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                start_new_session=True,
-            )
+            out_r, out_w = os.pipe()
+            err_r, err_w = os.pipe()
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *argv,
+                    cwd=workdir,
+                    env=env.child_env(secret_env),
+                    stdin=asyncio.subprocess.PIPE
+                    if stdin is not None
+                    else asyncio.subprocess.DEVNULL,
+                    stdout=out_w,
+                    stderr=err_w,
+                    start_new_session=True,
+                )
+            except BaseException:
+                os.close(out_r)
+                os.close(err_r)
+                raise
+            finally:
+                os.close(out_w)
+                os.close(err_w)
             readers = [
-                asyncio.create_task(_pump(_pipe(proc.stdout), Stream.STDOUT, out, on_output)),
-                asyncio.create_task(_pump(_pipe(proc.stderr), Stream.STDERR, err, on_output)),
+                await _read_fd(out_r, Stream.STDOUT, out, on_output),
+                await _read_fd(err_r, Stream.STDERR, err, on_output),
             ]
             if stdin is not None and proc.stdin is not None:
                 proc.stdin.write(stdin.encode())
@@ -423,19 +435,7 @@ class ProcessManager:
             )
         finally:
             os.close(slave)
-        loop = asyncio.get_running_loop()
-        reader = asyncio.StreamReader()
-        transport, _ = await loop.connect_read_pipe(
-            lambda: asyncio.StreamReaderProtocol(reader), os.fdopen(master, "rb", 0)
-        )
-
-        async def pump() -> None:
-            try:
-                await _pump(reader, Stream.STDOUT, out, on_output)
-            finally:
-                transport.close()
-
-        return proc, [asyncio.create_task(pump())]
+        return proc, [await _read_fd(master, Stream.STDOUT, out, on_output)]
 
     async def _terminate_group(self, proc: asyncio.subprocess.Process) -> None:
         pgid = proc.pid
@@ -457,16 +457,22 @@ class ProcessManager:
     ) -> ManagedProcess:
         argv = tuple(cmd)
         buffer = OutputBuffer(env.limits.output_bytes)
-        proc = await asyncio.create_subprocess_exec(
-            *argv,
-            cwd=env.cwd,
-            env=env.child_env(secret_env),
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            start_new_session=True,
-        )
-        stdout = _pipe(proc.stdout)
+        out_r, out_w = os.pipe()
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv,
+                cwd=env.cwd,
+                env=env.child_env(secret_env),
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=out_w,
+                stderr=out_w,
+                start_new_session=True,
+            )
+        except BaseException:
+            os.close(out_r)
+            raise
+        finally:
+            os.close(out_w)
         handle = ManagedProcess(
             id=uuid.uuid4().hex[:12],
             name=name,
@@ -475,7 +481,7 @@ class ProcessManager:
             pgid=proc.pid,
             output=buffer,
             process=proc,
-            readers=[asyncio.create_task(_pump(stdout, Stream.STDOUT, buffer, None))],
+            readers=[await _read_fd(out_r, Stream.STDOUT, buffer, None)],
         )
         started = await asyncio.to_thread(process_start_time, proc.pid) or ""
         self.registry.add(
@@ -546,10 +552,25 @@ async def terminate_group(pgid: int, escalation: Escalation, done: Callable[[], 
             await asyncio.sleep(0.05)
 
 
-def _pipe(reader: asyncio.StreamReader | None) -> asyncio.StreamReader:
-    if reader is None:
-        raise RuntimeError("subprocess pipe was not created")
-    return reader
+async def _read_fd(
+    fd: int, stream: Stream, buffer: OutputBuffer, on_output: OutputCallback | None
+) -> asyncio.Task[None]:
+    """Pump the read end of a pipe (or pty) DFM owns. Pipes the subprocess transport owned
+    would keep `Process.wait()` waiting on Python 3.12 until every holder closed them, so a
+    daemon the command started would hang the run until its timeout."""
+    loop = asyncio.get_running_loop()
+    reader = asyncio.StreamReader()
+    transport, _ = await loop.connect_read_pipe(
+        lambda: asyncio.StreamReaderProtocol(reader), os.fdopen(fd, "rb", 0)
+    )
+
+    async def pump() -> None:
+        try:
+            await _pump(reader, stream, buffer, on_output)
+        finally:
+            transport.close()
+
+    return asyncio.create_task(pump())
 
 
 _PUMP_CHUNK = 64 * 1024

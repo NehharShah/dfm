@@ -17,7 +17,7 @@ from dfm.config.writer import set_user_value
 from dfm.models.mlx import mlx_available
 from dfm.orchestration.implement import ImplementOptions, implement
 from dfm.orchestration.runtime import Runtime
-from tests.helpers import DONE, FIX, ScriptedCoder
+from tests.helpers import DONE, FIX, LIVE_MODEL_SKIP, ScriptedCoder
 from tests.netmon import NetworkMonitor
 from tests.test_live_local_coder import WEIGHTS
 
@@ -28,9 +28,7 @@ needs_fm = pytest.mark.skipif(shutil.which("fm") is None, reason="needs the `fm`
 @pytest.mark.mlx
 @pytest.mark.apple_fm
 @needs_fm
-@pytest.mark.skipif(
-    not mlx_available() or WEIGHTS is None, reason="needs mlx-lm and a local gpt-oss-20b"
-)
+@pytest.mark.skipif(not mlx_available() or WEIGHTS is None, reason=LIVE_MODEL_SKIP)
 async def test_offline_fix_with_zero_remote_connections(
     tmp_path: Path, calc_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
