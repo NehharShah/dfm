@@ -244,6 +244,11 @@ class ExecutionEnvironment:
     def approve_path(self, p: str | Path) -> Path:
         return self.boundary.approve(self._absolute(p))
 
+    def which(self, program: str) -> str | None:
+        """`program` on the PATH subprocesses get (not DFM's own: they can differ in tests, and a
+        presence check must agree with what then runs)."""
+        return shutil.which(program, path=self.source_env.get("PATH") or os.defpath)
+
     def child_env(self, extra_secret_names: Sequence[str] = ()) -> dict[str, str]:
         """Environment for a subprocess. Secrets appear only when a tool asks for them by name."""
         env = scrub_env(self.source_env)

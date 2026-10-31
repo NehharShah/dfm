@@ -11,6 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   test run that starts a daemon) blocked until its timeout. DFM now reads output pipes itself,
   so it stops waiting when the command exits on every supported Python version.
 - Type checking failed without the optional `mlx` extra.
+- A versioned Xcode install (`/Applications/Xcode_16.4.app`, as on CI runners and machines
+  with several Xcodes) was treated as outside the repository boundary, so policy refused
+  `swift test` with the Swift Testing plugin path.
+- Service and Docker availability checks looked up binaries on DFM's own `PATH` rather than
+  the one the command then runs with.
 - The configuration reference split rows whose type contains `|` (such as `int | None`).
 - A diagram in `ARCHITECTURE.md` did not render on GitHub.
 

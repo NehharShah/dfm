@@ -17,7 +17,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-import shutil
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -104,9 +103,9 @@ class ServiceManager:
         if not await port_open(spec.host, spec.port):
             return False
         probe: list[str] | None = None
-        if spec.kind == "postgres" and shutil.which("pg_isready"):
+        if spec.kind == "postgres" and self.env.which("pg_isready"):
             probe = ["pg_isready", "-h", spec.host, "-p", str(spec.port), "-t", "2"]
-        elif spec.kind == "redis" and shutil.which("redis-cli"):
+        elif spec.kind == "redis" and self.env.which("redis-cli"):
             probe = ["redis-cli", "-h", spec.host, "-p", str(spec.port), "ping"]
         if probe is None:
             return True  # the port answers; no protocol-level probe for this kind
@@ -180,7 +179,7 @@ class ServiceManager:
     ) -> tuple[list[list[str]], list[str]] | None:
         """(setup commands, server argv) to run `spec` from its own binary, if installed."""
         port = str(spec.port)
-        if spec.kind == "postgres" and shutil.which("postgres") and shutil.which("initdb"):
+        if spec.kind == "postgres" and self.env.which("postgres") and self.env.which("initdb"):
             setup = [
                 ["initdb", "-D", str(data_dir), "-U", "postgres", "--auth=trust", "-E", "UTF8"]
             ]
@@ -197,7 +196,7 @@ class ServiceManager:
                 "unix_socket_directories=",
             ]
             return setup, server
-        if spec.kind == "redis" and shutil.which("redis-server"):
+        if spec.kind == "redis" and self.env.which("redis-server"):
             return [], [
                 "redis-server",
                 "--port",
@@ -211,16 +210,16 @@ class ServiceManager:
                 "--dir",
                 str(data_dir),
             ]
-        if spec.kind == "nats" and shutil.which("nats-server"):
+        if spec.kind == "nats" and self.env.which("nats-server"):
             return [], ["nats-server", "-a", "127.0.0.1", "-p", port]
-        if spec.kind == "anvil" and shutil.which("anvil"):
+        if spec.kind == "anvil" and self.env.which("anvil"):
             return [], ["anvil", "--host", "127.0.0.1", "--port", port]
-        if spec.kind == "starknet-devnet" and shutil.which("starknet-devnet"):
+        if spec.kind == "starknet-devnet" and self.env.which("starknet-devnet"):
             return [], ["starknet-devnet", "--host", "127.0.0.1", "--port", port, "--seed", "0"]
         return None
 
     async def _docker_ready(self) -> bool:
-        if not shutil.which("docker"):
+        if not self.env.which("docker"):
             return False
         return await self.docker.available()
 
@@ -294,7 +293,7 @@ class ServiceManager:
 
     async def _start_brew(self, spec: ServiceSpec) -> ServiceHandle | None:
         formula = _BREW_FORMULA.get(spec.kind)
-        if formula is None or not shutil.which("brew"):
+        if formula is None or not self.env.which("brew"):
             return None
         argv = ["brew", "services", "start", formula]
         outcome = await self.host_runner.run(argv, timeout=120)
