@@ -20,8 +20,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # every supported version: asyncio subprocess behaviour differs between them
-        python-version: ["3.12", "3.13"]
+        # the floor (requires-python) and the newest release, which is what `pipx`/`uv tool`
+        # pick: asyncio subprocess behaviour differs between versions
+        python-version: ["3.12", "3.15"]
     steps:
       # Actions are pinned to commit SHAs so a moved tag cannot change what runs here.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
