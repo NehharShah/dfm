@@ -3,7 +3,8 @@ requires = ["hatchling>=1.24.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dfm"
+# Distribution name (PyPI); the import package and the command stay `dfm` (ADR 0014).
+name = "dfm-agent"
 version = "0.0.1"
 description = "Developer Foundation Model: a local, privacy-first engineering agent for Apple Silicon."
 readme = "README.md"
@@ -30,8 +31,10 @@ dependencies = [
   "typer>=0.12.3",
   "rich>=13.7.1",
   "pydantic>=2.7",
-  "repocanon",
-  "repokg",
+  # Released versions, so the package can be published (PyPI rejects Git dependencies). To
+  # work on them side by side: uv pip install -e ../repocanon -e ../repokg
+  "repocanon>=0.2.1,<0.3",
+  "repokg>=0.4.5,<0.5",
   "pyyaml>=6.0",
 ]
 
@@ -59,6 +62,10 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["dfm"]
+
+[tool.hatch.build.targets.sdist]
+# Only what the package ships: not docs, tests, fixtures or anything else in the checkout.
+only-include = ["dfm", "README.md", "LICENSE", "CHANGELOG.md", "SECURITY.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -118,9 +125,3 @@ strict = ["dfm"]
 # Sibling packages (repocanon, repokg) are typed but ship no py.typed; pyright reads their
 # source. Strict paths re-enable the stub check, so integration modules opt out per file.
 reportMissingTypeStubs = false
-
-[tool.uv.sources]
-# Pinned commits on GitHub (repocanon v0.2.1, repokg main). To work on them side by side:
-# uv pip install -e ../repocanon -e ../repokg
-repocanon = { git = "https://github.com/NehharShah/repocanon", rev = "34cbfae8d5a4575261ad4b0b5567ebcd028fdfdd" }
-repokg = { git = "https://github.com/NehharShah/repokg", rev = "c85ac03e8301edfc4d4fa067bc4f0bc44c45efc8" }

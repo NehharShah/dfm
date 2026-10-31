@@ -41,6 +41,9 @@ jobs:
         run: uv run pyright
       - name: Docs match the code
         run: uv run python -m dfm.docsgen --check
+      - name: Package builds and its metadata is valid
+        # What release.yml publishes; catches Git dependencies and sdist leaks on every PR.
+        run: uv build && uvx twine check --strict dist/*
       - name: Tests
         # Live model, Apple FM and language-server tests skip on runners without them.
         run: uv run pytest

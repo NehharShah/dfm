@@ -15,9 +15,18 @@ uv sync                    # add --extra mlx to run a local model
 uv run dfm doctor
 ```
 
-RepoCanon and RepoKG are pinned Git dependencies (`[tool.uv.sources]` in `pyproject.toml`). To
-develop against local checkouts: `uv pip install -e ../repocanon -e ../repokg`. Some tests use
-a [reflex-tui](https://github.com/sumervaid/reflex-tui) checkout at `../reflex-tui` when present.
+RepoCanon and RepoKG are released dependencies with version bounds in `pyproject.toml` (PyPI
+rejects Git dependencies). A change DFM needs is made in its own repository, released, and the
+bound raised here. To develop against local checkouts: `uv pip install -e ../repocanon -e
+../repokg`. Some tests use a [reflex-tui](https://github.com/sumervaid/reflex-tui) checkout at
+`../reflex-tui` when present.
+
+## Releasing
+
+Only the maintainer publishes. Bump `version` in `pyproject.toml`, move the `[Unreleased]`
+section of `CHANGELOG.md` under the new version, commit, then tag `vX.Y.Z` and push the tag.
+`.github/workflows/release.yml` builds the sdist and wheel, checks them, smoke-installs the
+wheel and publishes `dfm-agent` to PyPI through trusted publishing (no stored token).
 
 ## Checks
 

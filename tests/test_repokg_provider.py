@@ -59,9 +59,15 @@ async def test_graph_and_navigation(layered: Path) -> None:
 
 
 async def test_silent_and_no_network(layered: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    providers = provider_mod._module("repokg.providers")  # pyright: ignore[reportPrivateUsage]
+    # The PR collector moved from repokg.github (<= 0.4.5) to repokg.providers; patch whichever
+    # this RepoKG has, and assert DFM never reaches it.
     calls: list[object] = []
-    monkeypatch.setattr(providers, "collect", lambda *a, **k: calls.append(a) or ([], ""))
+    for name in ("repokg.providers", "repokg.github"):
+        try:
+            module = provider_mod._module(name)  # pyright: ignore[reportPrivateUsage]
+        except ModuleNotFoundError:
+            continue
+        monkeypatch.setattr(module, "collect", lambda *a, **k: calls.append(a) or ([], ""))
     captured = io.StringIO()
     with redirect_stdout(captured):
         kg = await RepoKGProvider().graph(layered)

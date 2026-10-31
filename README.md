@@ -25,13 +25,18 @@ is off or requires approval, per [policy](docs/policy.md).
 
 ## Quick start
 
+Install `dfm` as a command (the package is `dfm-agent`; the command is `dfm`):
+
 ```bash
-git clone https://github.com/NehharShah/dfm && cd dfm
-uv sync --extra mlx
-uv run dfm doctor                          # check this machine
-uv run dfm setup                           # choose a local model
-uv run dfm implement "fix the failing test"
+uv tool install "dfm-agent[mlx]"           # from PyPI, once released
+uv tool install "git+https://github.com/NehharShah/dfm[mlx]"   # or straight from GitHub
+dfm doctor                                 # check this machine
+dfm setup                                  # choose a local model
+dfm implement "fix the failing test"
 ```
+
+Omit `[mlx]` to install without the local coder. Upgrade with `uv tool upgrade dfm-agent`.
+To run from a checkout instead, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## How it works
 
