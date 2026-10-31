@@ -1,6 +1,7 @@
 """Shared test doubles and the sandboxed runner live toolchain tests use."""
 
 import json
+import os
 import sys
 from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 from dfm.config import DFMConfig, state_dirs
 from dfm.execution import ExecutionEnvironment
 from dfm.models import GenerateRequest, GenerateResult, ModelHealth
+from dfm.models.mlx.discovery import default_roots, discover
 from dfm.policy import Policy
 from dfm.processes import ProcessManager, ProcessRegistry
 from dfm.security.sandbox import Sandbox
@@ -22,6 +24,27 @@ FIX = {
     "replace": "return a + b",
 }
 DONE = {"action": "done", "reason": "tests pass", "summary": "fixed add"}
+
+LIVE_MODEL_ENV = "DFM_TEST_MODEL"
+LIVE_MODEL_SKIP = (
+    f"needs mlx-lm and {LIVE_MODEL_ENV} set to a local MLX model (a directory, or a name "
+    "from `dfm models` such as mlx-community/Qwen3.8-27B-4bit)"
+)
+
+
+def live_model() -> Path | None:
+    """The local model live tests run on. Opt-in: a 27B model heats a laptop, so a plain
+    `pytest` run never loads one."""
+    value = os.environ.get(LIVE_MODEL_ENV, "").strip()
+    if not value:
+        return None
+    path = Path(value).expanduser()
+    if (path / "config.json").is_file():
+        return path
+    for candidate in discover(default_roots()):
+        if value in (candidate.name, candidate.name.rsplit("/", 1)[-1]):
+            return candidate.path
+    return None
 
 
 class ScriptedCoder:

@@ -121,6 +121,20 @@ def test_child_env(repo: Path, home: Path) -> None:
     assert env.child_env(["GH_TOKEN"])["GH_TOKEN"] == "ghp_secret"
 
 
+def test_which_searches_the_child_path(repo: Path, home: Path, tmp_path: Path) -> None:
+    """A presence check must agree with what a subprocess then runs: the environment's PATH,
+    not DFM's own (they differ in tests, and when the developer's shell has extra tools)."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    tool = bin_dir / "dfm-only-here"
+    tool.write_text("#!/bin/sh\n")
+    tool.chmod(0o755)
+    env = make(repo, home, environ={"PATH": f"{bin_dir}:/usr/bin:/bin"})
+    assert env.which("dfm-only-here") == str(tool)
+    assert env.which("sh") is not None
+    assert make(repo, home).which("dfm-only-here") is None  # not on that PATH
+
+
 def test_offline_env_hints(repo: Path, home: Path) -> None:
     env = make(repo, home, overrides=ConfigOverrides(offline=True))
     assert env.network is NetworkMode.OFFLINE

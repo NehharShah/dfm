@@ -39,8 +39,11 @@ regenerated docs.
 | `threat` | nothing (threat-model regression suite) | runs; must pass |
 | `lsp` | a language server | skipped if missing |
 | `apple_fm` | Apple FM | skipped if missing |
-| `mlx`, `offline_e2e` | `mlx-lm` and a local model | skipped if missing |
+| `mlx`, `offline_e2e` | `mlx-lm` and `DFM_TEST_MODEL` set to a local model | skipped unless set |
 | `slow` | a 1 GB log fixture | excluded; run with `-m slow` |
+
+Live model tests are opt-in because they load the model and heat the machine:
+`DFM_TEST_MODEL=mlx-community/Qwen3.8-27B-4bit uv run pytest -m mlx` (a directory also works).
 
 ## Pull requests
 

@@ -495,6 +495,25 @@ def test_toolchain_install_paths_are_readable_arguments() -> None:
     assert classify(["cat", escape]).outside_boundary == (escape,)
 
 
+def test_versioned_xcode_installs_are_toolchain_paths() -> None:
+    # CI runners and developers with several Xcodes: `xcrun --find` resolves to one of these
+    toolchain = "Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr"
+    for app in ("Xcode.app", "Xcode_26.0.1.app", "Xcode-beta.app", "Xcode_16.4.0-beta.app"):
+        plugins = f"/Applications/{app}/{toolchain}/lib/swift/host/plugins/testing"
+        argv = ["swift", "test", "-Xswiftc", "-plugin-path", "-Xswiftc", plugins]
+        assert classify(argv, inside=lambda _p: False).outside_boundary == (), app
+        assert classify([f"/Applications/{app}/{toolchain}/bin/git", "status"]).action.value == (
+            "SAFE_READ"
+        )
+    for other in (
+        "/Applications/Xcode_26.app/../../Users/me/.ssh/id_rsa",
+        "/Applications/XcodeHelper/x",
+        "/Applications/Xcode.app.evil/x",
+        "/Users/me/Downloads/Xcode.app/x",
+    ):
+        assert classify(["cat", other], inside=lambda _p: False).outside_boundary == (other,)
+
+
 def test_gh_graphql_reads_and_writes() -> None:
     read = classify(
         ["gh", "api", "graphql", "-F", "number=7", "-f", "query=query { repository { id } }"]

@@ -87,6 +87,8 @@ def config_reference() -> str:
         "|---|---|---|---|",
     ]
     for key, kind, default, note in rows:
+        # A bare "|" (as in `int | None`) would split the table cell
+        key, kind, default, note = (s.replace("|", "\\|") for s in (key, kind, default, note))
         lines.append(f"| `{key}` | {kind} | `{default}` | {note} |")
     sections = [n for n in DFMConfig.model_fields]
     lines.append(f"\nSections: {', '.join(f'`[{s}]`' for s in sections)}.")
@@ -107,6 +109,19 @@ def _commands() -> list[list[str]]:
 
 
 def cli_reference() -> str:
+    from typer import rich_utils
+
+    # Typer reads GITHUB_ACTIONS, FORCE_COLOR and TERMINAL_WIDTH once, at import, so the env
+    # given to CliRunner cannot override them: pin them, or a CI runner renders 80 columns.
+    saved = rich_utils.FORCE_TERMINAL, rich_utils.MAX_WIDTH
+    rich_utils.FORCE_TERMINAL, rich_utils.MAX_WIDTH = False, 100
+    try:
+        return _render_cli_reference()
+    finally:
+        rich_utils.FORCE_TERMINAL, rich_utils.MAX_WIDTH = saved
+
+
+def _render_cli_reference() -> str:
     from dfm.cli.app import app
 
     runner = CliRunner()

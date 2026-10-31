@@ -32,7 +32,7 @@ Network rules are `allow`, `ask` or `deny`; `ask` with no interactive terminal m
 | `models.fallback.lazy_load` | bool | `True` |  |
 | `models.fallback.context` | int | `32768` | target context; the resource manager may lower it |
 | `models.thermal_limit` | one of `off`, `moderate`, `heavy` | `"moderate"` | macOS thermal pressure at which local generation slows down to let the laptop cool |
-| `models.seed` | int | None | `None` | fixed sampling seed for reproducible runs (benchmarks); unset: a fresh one each process |
+| `models.seed` | int \| None | `None` | fixed sampling seed for reproducible runs (benchmarks); unset: a fresh one each process |
 | `models.reasoning` | one of `auto`, `low`, `medium`, `high` | `"auto"` | how hard a reasoning model thinks per agent step: auto is medium, high right after a failed edit or error (the template default can be the most expensive level) |
 | `network.remote_inference` | one of `allow`, `ask`, `deny` | `"deny"` |  |
 | `network.github` | one of `allow`, `ask`, `deny` | `"ask"` |  |

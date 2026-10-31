@@ -198,17 +198,22 @@ def _basename(program: str) -> str:
 
 # Root-owned Apple toolchain installs: passing one of these as an argument (a compiler
 # search path) reads the toolchain, nothing else. Normalized first, so `..` cannot escape.
-_TOOLCHAIN_PREFIXES = (
-    "/Library/Developer/CommandLineTools/",
-    "/Applications/Xcode.app/",
-    "/Applications/Xcode-beta.app/",
-)
+# Xcode is often installed under a versioned name (Xcode_16.4.app, Xcode-beta.app): CI
+# runners and developers with several Xcodes resolve `xcrun --find` to one of those.
+_TOOLCHAIN_PREFIXES = ("/Library/Developer/CommandLineTools/",)
+_XCODE_APP = re.compile(r"^/Applications/Xcode[^/]*\.app/")
+
+
+def is_toolchain_path(path: str) -> bool:
+    """`path` is inside a root-owned Apple toolchain install."""
+    normalized = os.path.normpath(path)
+    return normalized.startswith(_TOOLCHAIN_PREFIXES) or _XCODE_APP.match(normalized) is not None
 
 
 def _is_inside(path: str, inside: InsidePredicate | None) -> bool:
     if _SHELL_VAR.search(path):
         return False
-    if os.path.normpath(path).startswith(_TOOLCHAIN_PREFIXES):
+    if is_toolchain_path(path):
         return True
     if inside is not None:
         return inside(path)
@@ -271,8 +276,10 @@ def _classify_simple(
     if "$" in program:
         return [Part(tuple(argv), A.UNKNOWN, None, ("command name comes from a variable",))]
     name = _basename(program)
-    trusted_path = name in rules.PATH_ANYWHERE or os.path.normpath(program).startswith(
-        rules.SYSTEM_BIN_PREFIXES
+    trusted_path = (
+        name in rules.PATH_ANYWHERE
+        or os.path.normpath(program).startswith(rules.SYSTEM_BIN_PREFIXES)
+        or is_toolchain_path(program)
     )
     if "/" in program and not (name in rules.PATH_OK and trusted_path):
         # `./tools/cat` may be anything the model just wrote: a read-only name proves nothing

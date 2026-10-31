@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,7 +91,7 @@ class Docker:
         return outcome.result.stdout
 
     async def available(self) -> bool:
-        if shutil.which("docker") is None:
+        if self.env.which("docker") is None:
             return False
         try:
             await self._run(["docker", "info", "--format", "{{.ServerVersion}}"], timeout=20)

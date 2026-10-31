@@ -79,7 +79,8 @@ def option_value(argv: Sequence[str], *names: str) -> str | None:
 
 
 # Programs that may be invoked by path (e.g. /usr/bin/git) and keep their rule: from a system
-# location, or anywhere for interpreters whose rule already means "runs repository code".
+# location (or an Apple toolchain install, see `classify.is_toolchain_path`), or anywhere for
+# interpreters whose rule already means "runs repository code".
 PATH_OK = frozenset({"git", "python3", "python", "env", "rg", "grep", "ls", "cat", "uv", "fm"})
 PATH_ANYWHERE = frozenset({"python3", "python", "uv"})
 SYSTEM_BIN_PREFIXES = (
@@ -91,8 +92,6 @@ SYSTEM_BIN_PREFIXES = (
     "/usr/local/bin/",
     "/opt/homebrew/bin/",
     "/opt/homebrew/opt/",
-    "/Library/Developer/CommandLineTools/",
-    "/Applications/Xcode.app/",
 )
 
 

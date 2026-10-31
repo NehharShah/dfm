@@ -167,12 +167,21 @@ def free_port() -> int:
         return int(s.getsockname()[1])
 
 
+# A bare listener, not `http.server`: its server_bind() reverse-resolves 127.0.0.1 before
+# listen(), and that lookup stalls for 30s+ on macOS 15 CI runners.
+LISTENER = (
+    "import socket, time\n"
+    "s = socket.socket(); s.bind(('127.0.0.1', {port})); s.listen(5)\n"
+    "time.sleep(60)"
+)
+
+
 async def test_background_server_ready_and_stop(
     pm: ProcessManager, env: ExecutionEnvironment
 ) -> None:
     port = free_port()
     handle = await pm.start_background(
-        [PY, "-m", "http.server", str(port), "--bind", "127.0.0.1"],
+        [PY, "-c", LISTENER.format(port=port)],
         env,
         name="http",
         ready=port_ready(port),

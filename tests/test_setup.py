@@ -8,6 +8,8 @@ from dfm.models.resources import ModelResourceManager
 from dfm.orchestration.setup import setup
 from tests.test_local_models import VM_STAT, fake_model_dir, runner
 
+pytestmark = pytest.mark.usefixtures("mlx_installed")
+
 
 @pytest.fixture
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:

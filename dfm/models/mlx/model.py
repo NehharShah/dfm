@@ -66,7 +66,7 @@ THERMAL_POLL_S = 5.0
 
 def mlx_available() -> bool:
     try:
-        import mlx_lm  # noqa: F401  # pyright: ignore[reportUnusedImport]
+        import mlx_lm  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingImports]
     except ImportError:
         return False
     return True
