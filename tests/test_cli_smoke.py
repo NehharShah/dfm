@@ -18,7 +18,8 @@ def test_help() -> None:
     assert "Developer Foundation Model" in result.stdout
 
 
-def test_bare_invocation_is_honest_about_missing_session() -> None:
+def test_bare_invocation_is_honest_about_missing_session_and_shows_help() -> None:
     result = runner.invoke(app, [])
     assert result.exit_code == 0
     assert "not built yet" in result.stdout
+    assert "Commands" in result.stdout and "doctor" in result.stdout  # the help follows

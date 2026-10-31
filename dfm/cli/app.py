@@ -107,9 +107,9 @@ def root(
     ctx.obj = ConfigOverrides(offline=offline, local_models=local_models)
     if ctx.invoked_subcommand is None:
         console.print(
-            "dfm: the interactive session is not built yet. "
-            "Run `dfm --help` for the commands available today."
+            "dfm: the interactive session is not built yet. The commands available today:\n"
         )
+        typer.echo(ctx.get_help())
 
 
 def main() -> None:
