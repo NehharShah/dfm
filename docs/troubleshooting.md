@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Run `uv run dfm doctor` first. It checks models, tools, integrations and policy without network
+Run `dfm doctor` first. It checks models, tools, integrations and policy without network
 access.
 
 | Symptom | Cause and fix |

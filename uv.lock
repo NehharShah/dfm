@@ -52,7 +52,7 @@ wheels = [
 ]
 
 [[package]]
-name = "dfm"
+name = "dfm-agent"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
@@ -82,8 +82,8 @@ requires-dist = [
     { name = "mlx-lm", marker = "extra == 'mlx'", specifier = ">=0.32.2" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "repocanon", git = "https://github.com/NehharShah/repocanon?rev=34cbfae8d5a4575261ad4b0b5567ebcd028fdfdd" },
-    { name = "repokg", git = "https://github.com/NehharShah/repokg?rev=c85ac03e8301edfc4d4fa067bc4f0bc44c45efc8" },
+    { name = "repocanon", specifier = ">=0.2.1,<0.3" },
+    { name = "repokg", specifier = ">=0.4.5,<0.5" },
     { name = "rich", specifier = ">=13.7.1" },
     { name = "typer", specifier = ">=0.12.3" },
 ]
@@ -870,18 +870,26 @@ wheels = [
 [[package]]
 name = "repocanon"
 version = "0.2.1"
-source = { git = "https://github.com/NehharShah/repocanon?rev=34cbfae8d5a4575261ad4b0b5567ebcd028fdfdd#34cbfae8d5a4575261ad4b0b5567ebcd028fdfdd" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "typer" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/a4/95/bd37b7e7776fd26f28af3207ae05d380f1a0a936020a27135ec5fffd3193/repocanon-0.2.1.tar.gz", hash = "sha256:8b84f91a381f882c34d731a796d4339badf32bf17ee7ffb65118ee5ad2e77eba", size = 57300, upload-time = "2026-05-09T16:08:50.505Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/f6/bcc44a345f18b20e86a97cfa375eea31f64f3467dab17b0d080821b4ab69/repocanon-0.2.1-py3-none-any.whl", hash = "sha256:9fe53c9f4c8b50fbe03f4fe46401e179038016b45e03c6ec2fb3a2b4c12e9dc1", size = 66620, upload-time = "2026-05-09T16:08:49.166Z" },
+]
 
 [[package]]
 name = "repokg"
 version = "0.4.5"
-source = { git = "https://github.com/NehharShah/repokg?rev=c85ac03e8301edfc4d4fa067bc4f0bc44c45efc8#c85ac03e8301edfc4d4fa067bc4f0bc44c45efc8" }
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/7b/e3195fa8968157cb358d8bec1467a52a8d2466cca3ae381853c3d50da777/repokg-0.4.5.tar.gz", hash = "sha256:adc3d4d418fe5aca5b6a040f0edb9a1437267008c4f17507b705059409254d11", size = 100394, upload-time = "2026-09-11T03:38:26.889Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/52/24/2b7ab373a9a577b5ad4ae537d10d5a66c6713c59aefaf7c66e181aeb17b3/repokg-0.4.5-py3-none-any.whl", hash = "sha256:dfe66d0073a7e23d5d336b21669aebcb647618778a5852445c096c28d2d37fe8", size = 62750, upload-time = "2026-09-11T03:38:25.539Z" },
+]
 
 [[package]]
 name = "rich"

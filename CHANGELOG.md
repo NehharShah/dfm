@@ -24,6 +24,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 - Live model tests are opt-in through `DFM_TEST_MODEL` and work with any local MLX model, not
   only gpt-oss-20b. Model-logic tests no longer depend on whether `mlx` is installed.
 - CI runs on Python 3.12 and 3.13, with actions pinned to commit SHAs.
+- The package is distributed as `dfm-agent` (the command stays `dfm`); install with
+  `uv tool install "dfm-agent[mlx]"`. RepoCanon and RepoKG are released dependencies with
+  version bounds instead of pinned Git commits, the sdist contains only what the package ships,
+  and a tag push publishes to PyPI through trusted publishing (ADR 0014).
 
 ## [0.0.1]
 
