@@ -73,6 +73,13 @@ class Checkpoint:
         )
 
 
+@dataclass
+class UndoResult:
+    restored: list[str] = field(default_factory=lambda: [])
+    removed: list[str] = field(default_factory=lambda: [])  # files DFM had created
+    skipped: list[str] = field(default_factory=lambda: [])  # "path: why"
+
+
 @dataclass(frozen=True)
 class CheckpointRef:
     n: int
@@ -139,6 +146,40 @@ class Checkpointer:
             return None
         blob = self.originals_dir / digest
         return blob.read_bytes() if blob.exists() else None
+
+    def undo(self, left: dict[str, str | None]) -> "UndoResult":
+        """Put every file DFM edited under this id back as it was before DFM's first edit.
+
+        `left` maps each path to the sha256 DFM left it with (None: DFM deleted it). A file
+        whose content changed since is someone else's work now and is not touched. Secret files
+        were recorded by hash only and cannot be restored.
+        """
+        result = UndoResult()
+        index = self._originals_index()
+        repo = self.repo.resolve()
+        for rel_path, expected in sorted(left.items()):
+            target = (repo / rel_path).resolve()
+            if not target.is_relative_to(repo) or rel_path not in index:
+                result.skipped.append(f"{rel_path}: not a file DFM edited here")
+                continue
+            current = _sha(target.read_bytes()) if target.is_file() else None
+            if current != expected:
+                result.skipped.append(f"{rel_path}: changed since DFM edited it")
+                continue
+            original = index[rel_path]
+            if original is None:  # DFM created it
+                if target.is_file():
+                    target.unlink()
+                    result.removed.append(rel_path)
+                continue
+            data = self.original_content(rel_path)
+            if data is None:
+                result.skipped.append(f"{rel_path}: only its hash was kept (secret file)")
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            result.restored.append(rel_path)
+        return result
 
     def modified_files(self) -> dict[str, FileChange]:
         changes: dict[str, FileChange] = {}

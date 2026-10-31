@@ -4,6 +4,9 @@ Subcommands are registered here as their issues land; nothing is registered
 before it works.
 """
 
+import asyncio
+import sys
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -35,7 +38,7 @@ from dfm.cli.sessions_cmd import sessions_app
 from dfm.cli.setup_cmd import setup
 from dfm.cli.status_cmd import profile, status
 from dfm.cli.work_cmd import implement, plan, resume
-from dfm.config import ConfigOverrides
+from dfm.config import ConfigError, ConfigOverrides, discover_repo_root
 from dfm.tools.git.hardening import harden_process
 
 app = typer.Typer(
@@ -103,13 +106,36 @@ def root(
         ),
     ] = False,
 ) -> None:
-    """Run `dfm` in a repository to start an engineering session."""
+    """Run `dfm` in a repository to start an interactive session."""
     ctx.obj = ConfigOverrides(offline=offline, local_models=local_models)
-    if ctx.invoked_subcommand is None:
-        console.print(
-            "dfm: the interactive session is not built yet. The commands available today:\n"
-        )
+    if ctx.invoked_subcommand is not None:
+        return
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        console.print("dfm: the interactive session needs a terminal. The commands:\n")
         typer.echo(ctx.get_help())
+        return
+    _interactive(ctx.obj, None)
+
+
+@app.command("chat")
+def chat(
+    ctx: typer.Context,
+    repo: Annotated[Path | None, typer.Option("--repo", help="Repository root.")] = None,
+) -> None:
+    """Start an interactive session (what `dfm` alone does in a terminal)."""
+    overrides = ctx.find_root().obj
+    _interactive(overrides if isinstance(overrides, ConfigOverrides) else None, repo)
+
+
+def _interactive(overrides: ConfigOverrides | None, repo: Path | None) -> None:
+    from dfm.interactive.repl import run  # prompt_toolkit loads only for the session
+
+    try:
+        code = asyncio.run(run(discover_repo_root(repo or Path.cwd()), overrides))
+    except ConfigError as exc:
+        console.print(f"[red]error:[/red] {exc}")
+        raise typer.Exit(2) from exc
+    raise typer.Exit(code)
 
 
 def main() -> None:

@@ -12,8 +12,8 @@ from __future__ import annotations
 import logging
 import shutil
 import time
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,7 @@ from dfm.tools.git.hardening import harden_process
 from dfm.tools.shell.runner import CommandRunner
 
 _log = logging.getLogger("dfm.session")
+EventListener = Callable[[str, dict[str, Any]], None]
 
 
 def _local_coders(
@@ -106,6 +107,8 @@ class Runtime:
     # `--offline` and the developer's approver would be lost inside it
     overrides: ConfigOverrides | None = None
     approver: Approver | None = None
+    # live observers of `event` (the interactive session's display); never part of the trace
+    listeners: list[EventListener] = field(default_factory=lambda: [])
 
     @classmethod
     def create(
@@ -223,6 +226,11 @@ class Runtime:
     def event(self, event_type: str, **payload: Any) -> None:
         self.store.append(self.session, event_type, **payload)
         _log.info(event_type, extra={"session": self.session.id, "payload": payload})
+        for listener in self.listeners:
+            try:
+                listener(event_type, payload)
+            except Exception:  # a display bug must never stop the work it displays
+                _log.exception("event listener failed on %s", event_type)
 
     async def close(self, status: SessionStatus, summary: str = "") -> None:
         for model in (self.pool.primary, self.pool.small):

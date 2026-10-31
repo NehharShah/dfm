@@ -310,6 +310,7 @@ class AgentLoop:
         forbid_skips: bool = False,
         services: bool = True,
         allow_generated_edits: bool = False,
+        checkpoint_id: str | None = None,
     ) -> None:
         self.rt = rt
         self.target = target  # a command that must pass (the failing CI step in `dfm ci`)
@@ -337,7 +338,8 @@ class AgentLoop:
         self.context_tokens = context_tokens
         self.ledger = VerificationLedger()
         self.history: list[str] = []
-        self.checkpointer = Checkpointer(rt.repo, rt.session.id)
+        # one id per task: an interactive session runs several, and undoes them one at a time
+        self.checkpointer = Checkpointer(rt.repo, checkpoint_id or rt.session.id)
         self.guard = GitGuard(rt.repo) if is_git_repo(rt.repo) else None
         if self.guard is not None and planned_paths:
             self.guard.plan_paths(planned_paths)
@@ -610,6 +612,8 @@ class AgentLoop:
             model=self.coder.name,
             step=step,
             action=action.action,
+            target=action.path or action.pattern or action.command,
+            reason=action.reason,
             latency_ms=int((time.monotonic() - started) * 1000),
         )
         return action

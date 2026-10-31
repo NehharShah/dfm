@@ -5,6 +5,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Added
+
+- `dfm` in a terminal starts an interactive session (also `dfm chat`). The local model loads once
+  and stays loaded between requests; each step is shown as it runs, with the diff of every
+  edit; confirmations appear inline. Requests that change code run the `dfm implement` loop,
+  questions are answered read-only, and review requests review the working-tree diff.
+  Commands: `/diff`, `/undo`, `/plan`, `/review`, `/ask`, `/do`, `/status`, `/clear`, `/help`,
+  `/exit`. Ctrl-C stops the current request without ending the session (ADR 0015).
+- `/undo` reverts the files DFM changed in its latest request, skipping any file changed since.
+
+### Changed
+
+- Without a terminal, `dfm` lists the commands instead of saying the session is not built.
+- New dependency: `prompt-toolkit`, for the session's input line.
+
 ## [0.0.2] - 2026-10-31
 
 ### Fixed

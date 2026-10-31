@@ -29,7 +29,7 @@ Related: interfaces in [docs/architecture.md](docs/architecture.md), threats in
 ```mermaid
 flowchart TB
     subgraph CLI["CLI (dfm ...)"]
-        modes["ask · plan · implement · review · security-review · ci · fix-pr · benchmark"]
+        modes["interactive session · ask · plan · implement · review · security-review · ci · fix-pr · benchmark"]
     end
 
     CLI --> RT["Runtime<br/>config layers · execution environment · session"]

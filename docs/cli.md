@@ -52,6 +52,7 @@ Usage: dfm [OPTIONS] COMMAND [ARGS]...
 │ benchmark        Run every task in a fresh copy, offline, under each ablation; write JSON + a    │
 │                  markdown table.                                                                 │
 │ setup            Prepare this machine for DFM: models, integrations, config, offline checks.     │
+│ chat             Start an interactive session (what `dfm` alone does in a terminal).             │
 │ config           Show the effective configuration and its file locations.                        │
 │ processes        List and stop processes DFM started (never anyone else's).                      │
 │ sessions         List DFM sessions for this repository.                                          │
@@ -99,6 +100,19 @@ Usage: dfm benchmark [OPTIONS]
 │ --list                      List the tasks and exit.                                             │
 │ --json                      Print results as JSON.                                               │
 │ --help                      Show this message and exit.                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+```
+
+## dfm chat
+
+```text
+Usage: dfm chat [OPTIONS]
+
+ Start an interactive session (what `dfm` alone does in a terminal).
+
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
+│ --repo        <path>  Repository root.                                                           │
+│ --help                Show this message and exit.                                                │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
