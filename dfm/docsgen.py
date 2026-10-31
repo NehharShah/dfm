@@ -13,7 +13,8 @@ import inspect
 import re
 import sys
 from pathlib import Path
-from typing import Any, Literal, get_args, get_origin
+from types import NoneType, UnionType
+from typing import Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel
 from typer.main import get_command
@@ -50,8 +51,13 @@ def _field_comments(cls: type[BaseModel]) -> dict[str, str]:
 
 
 def _type_name(annotation: Any) -> str:
-    if get_origin(annotation) is Literal:
+    origin = get_origin(annotation)
+    if origin is Literal:
         return "one of " + ", ".join(f"`{a}`" for a in get_args(annotation))
+    if origin in (Union, UnionType):  # spelled out: on 3.14+ a union's __name__ is "Union"
+        return " | ".join(_type_name(a) for a in get_args(annotation))
+    if annotation is NoneType:
+        return "None"
     return getattr(annotation, "__name__", None) or str(annotation).replace("typing.", "")
 
 
