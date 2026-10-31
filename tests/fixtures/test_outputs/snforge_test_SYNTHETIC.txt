@@ -1,0 +1,16 @@
+   Compiling calc v0.1.0 (/work/calc/Scarb.toml)
+    Finished `dev` profile target(s) in 3 seconds
+
+
+Collected 2 test(s) from calc package
+Running 2 test(s) from tests/
+[PASS] calc_tests::test_ok (l1_gas: ~0, l1_data_gas: ~0, l2_gas: ~40000)
+[FAIL] calc_tests::test_add
+
+Failure data:
+    0x6164642062726f6b656e ('add broken')
+
+Tests: 1 passed, 1 failed, 0 ignored, 0 filtered out
+
+Failures:
+    calc_tests::test_add

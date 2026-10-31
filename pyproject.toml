@@ -1,0 +1,125 @@
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dfm"
+version = "0.0.1"
+description = "Developer Foundation Model: a local, privacy-first engineering agent for Apple Silicon."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+authors = [{ name = "Nihar Shah" }]
+keywords = ["coding-agent", "local-llm", "mlx", "apple-silicon", "privacy", "developer-tools"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+# Runtime dependencies must never include a hosted-inference SDK.
+# tests/test_no_remote_inference.py enforces this.
+dependencies = [
+  "typer>=0.12.3",
+  "rich>=13.7.1",
+  "pydantic>=2.7",
+  "repocanon",
+  "repokg",
+  "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/NehharShah/dfm"
+Documentation = "https://github.com/NehharShah/dfm/blob/main/docs/guide.md"
+Issues = "https://github.com/NehharShah/dfm/issues"
+Changelog = "https://github.com/NehharShah/dfm/blob/main/CHANGELOG.md"
+
+[project.scripts]
+dfm = "dfm.cli.app:main"
+
+[project.optional-dependencies]
+mlx = [
+    "mlx-lm>=0.32.2",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.2.0",
+  "ruff>=0.6.0",
+  "pyright>=1.1.380",
+  "pytest-asyncio>=1.4.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["dfm"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers -m 'not slow'"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+  "apple_fm: needs the local Apple Foundation Model (`fm`)",
+  "mlx: needs MLX and a local model",
+  "offline_e2e: end-to-end run with networking disabled",
+  "threat: threat-model regression tests",
+  "lsp: needs a real language server",
+  "slow: long-running acceptance checks (run with `-m slow`)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+# Markdown holds design sketches, not runnable code.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "S", "PTH"]
+ignore = ["SIM905"]
+
+[tool.ruff.lint.per-file-ignores]
+# Regex tables read better one pattern per line.
+"dfm/routing/router.py" = ["E501"]
+"dfm/context/engine.py" = ["E501"]
+"dfm/tools/filesystem/*.py" = ["E501"]
+"dfm/tools/git/*.py" = ["E501"]
+"dfm/tools/results.py" = ["E501"]
+"dfm/tools/languages/*.py" = ["E501"]
+"dfm/tools/shell/runner.py" = ["E501"]
+"dfm/lsp/*.py" = ["E501"]
+"dfm/orchestration/*.py" = ["E501"]
+"dfm/recovery/*.py" = ["E501"]
+"dfm/services/*.py" = ["E501"]
+"dfm/tools/docker/*.py" = ["E501"]
+"dfm/tools/blockchain/*.py" = ["E501"]
+"dfm/tools/logs.py" = ["E501"]
+"dfm/tools/generated.py" = ["E501"]
+"dfm/observability/*.py" = ["E501"]
+"dfm/benchmark/*.py" = ["E501"]
+"dfm/docsgen.py" = ["E501"]
+"dfm/cli/*.py" = ["E501"]
+"dfm/models/mlx/*.py" = ["E501"]
+"dfm/models/resources.py" = ["E501"]
+"tests/**/*.py" = ["E501"]
+"tests/**" = ["S101", "S105", "S106", "S108", "S603", "S607"]
+
+[tool.pyright]
+include = ["dfm", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+strict = ["dfm"]
+# Sibling packages (repocanon, repokg) are typed but ship no py.typed; pyright reads their
+# source. Strict paths re-enable the stub check, so integration modules opt out per file.
+reportMissingTypeStubs = false
+
+[tool.uv.sources]
+# Pinned commits on GitHub (repocanon v0.2.1, repokg main). To work on them side by side:
+# uv pip install -e ../repocanon -e ../repokg
+repocanon = { git = "https://github.com/NehharShah/repocanon", rev = "34cbfae8d5a4575261ad4b0b5567ebcd028fdfdd" }
+repokg = { git = "https://github.com/NehharShah/repokg", rev = "c85ac03e8301edfc4d4fa067bc4f0bc44c45efc8" }

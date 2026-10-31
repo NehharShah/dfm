@@ -1,0 +1,82 @@
+files = '\.(m|c)?(j|t)sx?$'
+
+[[rule]]
+id = "js-exec"
+category = "injection"
+severity = "HIGH"
+title = "shell command with interpolated input"
+pattern = '(child_process\.)?(exec|execSync)\(\s*(`[^`]*\$\{|[^,)]*\+)'
+why = "exec runs a shell; interpolated values enable command injection. Use execFile/spawn with args"
+
+[[rule]]
+id = "js-eval"
+category = "injection"
+severity = "HIGH"
+title = "dynamic code evaluation"
+pattern = '\beval\(|new Function\(|setTimeout\(\s*["`]'
+why = "evaluating strings runs attacker-controlled code"
+
+[[rule]]
+id = "js-sql-template"
+category = "injection"
+severity = "HIGH"
+title = "SQL built with a template string"
+pattern = '\.(query|execute|raw|\$queryRawUnsafe|\$executeRawUnsafe)\(\s*`[^`]*\$\{'
+why = "interpolating into SQL enables injection; use parameters or a tagged sql template"
+
+[[rule]]
+id = "js-xss"
+category = "injection"
+severity = "MEDIUM"
+title = "raw HTML injection"
+pattern = '\.innerHTML\s*=|dangerouslySetInnerHTML|\.outerHTML\s*=|document\.write\(|v-html='
+why = "unescaped HTML enables XSS"
+
+[[rule]]
+id = "js-open-redirect"
+category = "authz"
+severity = "MEDIUM"
+title = "redirect to a caller-supplied URL"
+pattern = 'res\.redirect\(\s*req\.(query|body|params)'
+why = "open redirects help phishing and token theft; allow-list destinations"
+
+[[rule]]
+id = "js-path-traversal"
+category = "path-traversal"
+severity = "HIGH"
+title = "file path built from request input"
+pattern = '(readFile|readFileSync|createReadStream|sendFile|path\.join|path\.resolve)\([^)]*req\.(query|body|params)'
+why = "user-controlled path segments can escape the intended directory"
+
+[[rule]]
+id = "js-ssrf"
+category = "ssrf"
+severity = "MEDIUM"
+title = "outbound request to a caller-supplied URL"
+pattern = '(fetch|axios\.\w+|got|request)\(\s*req\.(query|body|params)'
+why = "fetching URLs the caller controls enables SSRF; allow-list hosts"
+
+[[rule]]
+id = "js-jwt-decode"
+category = "authz"
+severity = "HIGH"
+title = "JWT decoded without verification"
+pattern = '''jwt\.decode\(|algorithms:\s*\[\s*["']none'''
+unless = 'verify'
+why = "decode does not check the signature; use verify"
+
+[[rule]]
+id = "js-insecure-random"
+category = "crypto"
+severity = "MEDIUM"
+title = "Math.random for a secret"
+pattern = '(?i:token|secret|password|nonce|salt|otp|key)\w*\s*[:=].*Math\.random\('
+why = "Math.random is predictable; use crypto.randomUUID / getRandomValues"
+
+[[rule]]
+id = "js-prototype-pollution"
+category = "injection"
+severity = "MEDIUM"
+title = "object merge of request input"
+pattern = '(Object\.assign|_\.merge|merge|extend)\([^)]*req\.(body|query)'
+why = "deep-merging request bodies allows __proto__ pollution"

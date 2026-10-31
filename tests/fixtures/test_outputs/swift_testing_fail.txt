@@ -1,0 +1,32 @@
+Building for debugging...
+[Planning deferred tasks]
+[27 / 50]
+[28 / 51] Calc
+[31 / 59]
+[34 / 59]
+[44 / 59] Calc
+/work/sw/Package.swift: Calc: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
+[49 / 60] CalcTests-product
+[60 / 86]
+[66 / 86]
+[67 / 86]
+[71 / 86]
+[72 / 86]
+/work/sw/Package.swift: CalcTests-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/usr/lib' not found
+/work/sw/Package.swift: CalcTests-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
+/work/sw/Package.swift: CalcTests-product: ld: warning: building for macOS-12.0, but linking with dylib '@rpath/Testing.framework/Versions/A/Testing' which was built for newer version 14.0
+[82 / 86] CalcTests-product
+Build complete! (12.39 sec)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test addsTwoNumbers() started.
+◇ Test handlesZero() started.
+✔ Test handlesZero() passed after 0.001 seconds.
+✘ Test addsTwoNumbers() recorded an issue at CalcTests.swift:5:5: Expectation failed: add(2, 3) == 5
+↳ add(2, 3) == 5 → false
+↳   add(2, 3) → -1
+✘ Test addsTwoNumbers() failed after 0.001 seconds with 1 issue.
+✘ Test run with 2 tests in 0 suites failed after 0.001 seconds with 1 issue.
+Note: Some test targets reported failures:
+  - CalcTests (Swift Testing)

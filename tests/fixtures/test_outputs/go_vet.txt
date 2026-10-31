@@ -1,0 +1,3 @@
+# example.com/calc/calc
+# [example.com/calc/calc]
+vet: calc/calc.go:4:9: invalid operation: a - "x" (mismatched types int and untyped string)

@@ -1,0 +1,49 @@
+files = '\.sol$'
+
+[[rule]]
+id = "sol-tx-origin"
+category = "smart-contract"
+severity = "HIGH"
+title = "authorization via tx.origin"
+pattern = 'tx\.origin'
+why = "tx.origin auth is bypassed by any contract the owner interacts with; use msg.sender"
+
+[[rule]]
+id = "sol-delegatecall"
+category = "smart-contract"
+severity = "HIGH"
+title = "delegatecall added"
+pattern = '\.delegatecall\('
+why = "delegatecall runs foreign code with this contract's storage; the target must be trusted and fixed"
+
+[[rule]]
+id = "sol-selfdestruct"
+category = "smart-contract"
+severity = "HIGH"
+title = "selfdestruct added"
+pattern = '\bselfdestruct\('
+why = "selfdestruct can remove the contract or force-send ether; gate and justify it"
+
+[[rule]]
+id = "sol-low-level-call"
+category = "smart-contract"
+severity = "MEDIUM"
+title = "low-level call with value"
+pattern = '\.call\{value:'
+why = "check the returned success flag and follow checks-effects-interactions to avoid reentrancy"
+
+[[rule]]
+id = "sol-timestamp-randomness"
+category = "smart-contract"
+severity = "MEDIUM"
+title = "block data used as randomness"
+pattern = 'keccak256\([^)]*(block\.timestamp|block\.prevrandao|blockhash)'
+why = "block values are predictable or miner-influenced; use a VRF"
+
+[[rule]]
+id = "sol-unchecked"
+category = "smart-contract"
+severity = "LOW"
+title = "unchecked arithmetic block"
+pattern = '\bunchecked\s*\{'
+why = "overflow checks are off inside unchecked; confirm the bounds are proven"

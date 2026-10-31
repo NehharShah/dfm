@@ -1,0 +1,42 @@
+[
+ {
+  "id": "PRRT_10",
+  "isResolved": false,
+  "isOutdated": false,
+  "path": "src/widget/config.py",
+  "line": 12,
+  "originalLine": 12,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9010,
+     "body": "This returns None for an empty file; callers expect a dict.",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9010",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "PRRT_11",
+  "isResolved": false,
+  "isOutdated": false,
+  "path": "src/widget/config.py",
+  "line": 20,
+  "originalLine": 20,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9011,
+     "body": "nit: name this `defaults`",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9011",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ }
+]

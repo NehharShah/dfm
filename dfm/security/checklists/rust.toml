@@ -1,0 +1,26 @@
+files = '\.rs$'
+
+[[rule]]
+id = "rs-unsafe"
+category = "memory-safety"
+severity = "LOW"
+title = "unsafe block added"
+pattern = '\bunsafe\s*(\{|fn|impl)'
+unless = 'SAFETY:'
+why = "unsafe code needs a // SAFETY: justification and careful review"
+
+[[rule]]
+id = "rs-shell"
+category = "injection"
+severity = "HIGH"
+title = "shell command with interpolated input"
+pattern = '''Command::new\("(sh|bash)"\)[^;]*\.arg\("-c"\)'''
+why = "sh -c with interpolated input enables command injection"
+
+[[rule]]
+id = "rs-sql-format"
+category = "injection"
+severity = "HIGH"
+title = "SQL built with format!"
+pattern = '''(query|execute)\w*\(\s*&?format!\(|format!\(\s*"(SELECT|INSERT|UPDATE|DELETE)'''
+why = "formatting values into SQL enables injection; bind parameters"

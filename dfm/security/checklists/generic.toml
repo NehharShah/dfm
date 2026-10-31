@@ -1,0 +1,43 @@
+# Applies to every changed text file. Patterns run on added lines only.
+files = '.*'
+
+[[rule]]
+id = "private-key"
+category = "secrets"
+severity = "BLOCKER"
+title = "private key material added"
+pattern = '-----BEGIN (RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY'
+why = "a committed private key must be treated as leaked: rotate it and remove it from history"
+
+[[rule]]
+id = "disable-tls"
+category = "crypto"
+severity = "HIGH"
+title = "TLS verification disabled"
+pattern = 'verify\s*=\s*False|InsecureSkipVerify:\s*true|rejectUnauthorized:\s*false|NODE_TLS_REJECT_UNAUTHORIZED|danger_accept_invalid_certs\(true\)'
+why = "disabling certificate checks allows man-in-the-middle attacks"
+
+[[rule]]
+id = "weak-hash"
+category = "crypto"
+severity = "MEDIUM"
+title = "weak hash used"
+pattern = '\b(md5|sha1)\b'
+unless = '(?i)checksum|etag|cache|fingerprint|usedforsecurity\s*=\s*False'
+why = "MD5/SHA-1 are broken for passwords, signatures and integrity against attackers"
+
+[[rule]]
+id = "cors-any"
+category = "authz"
+severity = "MEDIUM"
+title = "CORS allows any origin"
+pattern = '''Access-Control-Allow-Origin["']?\s*[:,=]\s*["']\*|allow_origins\s*=\s*\[\s*["']\*|origin:\s*["']\*'''
+why = "a wildcard origin combined with credentials or sensitive reads exposes data cross-site"
+
+[[rule]]
+id = "bind-all"
+category = "exposure"
+severity = "LOW"
+title = "service bound to all interfaces"
+pattern = '''["']0\.0\.0\.0["']'''
+why = "listening on 0.0.0.0 exposes the service on every network the host is on"

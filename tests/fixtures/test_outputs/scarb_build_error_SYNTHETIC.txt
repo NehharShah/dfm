@@ -1,0 +1,7 @@
+   Compiling calc v0.1.0 (/work/calc/Scarb.toml)
+error: Unexpected return type. Expected: "core::felt252", found: "core::bool".
+ --> /work/calc/src/lib.cairo:2:5
+    true
+    ^**^
+
+error: could not compile `calc` due to previous error

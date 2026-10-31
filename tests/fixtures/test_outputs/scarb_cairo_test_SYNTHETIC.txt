@@ -1,0 +1,11 @@
+     Running cairo-test calc
+   Compiling test(calc_unittest) calc v0.1.0 (/work/calc/Scarb.toml)
+    Finished `dev` profile target(s) in 2 seconds
+testing calc ...
+running 2 tests
+test calc::tests::test_ok ... ok (gas usage est.: 2000)
+test calc::tests::test_add ... fail (gas usage est.: 3000)
+failures:
+   calc::tests::test_add - Panicked with 0x6164642062726f6b656e ('add broken').
+
+Error: test result: FAILED. 1 passed; 1 failed; 0 ignored

@@ -1,0 +1,26 @@
+{
+ "author": {
+  "id": "U_1",
+  "is_bot": false,
+  "login": "user1",
+  "name": "User One"
+ },
+ "baseRefName": "trunk",
+ "body": "Adds `mul`.",
+ "files": [
+  {
+   "path": "src/calc/ops.py",
+   "additions": 3,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  }
+ ],
+ "headRefName": "add-mul",
+ "headRefOid": "da42d395407da8d2f93beb15e1fb973cd6477626",
+ "isDraft": false,
+ "number": 8,
+ "reviewDecision": "APPROVED",
+ "state": "OPEN",
+ "title": "Add mul",
+ "url": "https://github.com/acme/widget/pull/8"
+}

@@ -1,0 +1,15 @@
+[⠊] Compiling...
+[⠒] Compiling 2 files with Solc 0.8.28
+[⠢] Solc 0.8.28 finished in 21.04ms
+Error: Compiler run failed:
+Error (7576): Undeclared identifier. Did you mean "number"?
+  --> src/Counter.sol:9:9:
+   |
+ 9 |         numbr = newNumber;
+   |         ^^^^^
+
+Warning (2072): Unused local variable.
+  --> src/Counter.sol:13:9:
+   |
+13 |         uint256 unused = 1;
+   |         ^^^^^^^^^^^^^^

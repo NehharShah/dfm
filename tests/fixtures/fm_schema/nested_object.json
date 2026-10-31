@@ -1,0 +1,39 @@
+{
+  "$defs" : {
+    "Inner" : {
+      "title" : "Inner",
+      "type" : "object",
+      "properties" : {
+        "n" : {
+          "type" : "integer"
+        }
+      },
+      "x-order" : [
+        "n"
+      ],
+      "required" : [
+        "n"
+      ],
+      "additionalProperties" : false
+    }
+  },
+  "x-order" : [
+    "title",
+    "inner"
+  ],
+  "additionalProperties" : false,
+  "title" : "Outer",
+  "required" : [
+    "title",
+    "inner"
+  ],
+  "properties" : {
+    "title" : {
+      "type" : "string"
+    },
+    "inner" : {
+      "$ref" : "#\/$defs\/Inner"
+    }
+  },
+  "type" : "object"
+}

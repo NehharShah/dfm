@@ -1,0 +1,573 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/NehharShah/dfm/docs/protocol/dfm-session-v1.schema.json",
+  "title": "DFM session trace v1 (one JSON object per line)",
+  "$defs": {
+    "header": {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "source": {
+          "const": "dfm"
+        },
+        "dfm_version": {
+          "type": "string"
+        },
+        "repo_hash": {
+          "type": "string"
+        },
+        "repo_name": {
+          "type": "string"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "request": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "session_id",
+        "source",
+        "dfm_version",
+        "repo_hash",
+        "repo_name",
+        "started_at",
+        "mode",
+        "request"
+      ]
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "seq",
+        "at"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "after"
+            ]
+          },
+          {
+            "required": [
+              "before"
+            ]
+          },
+          {
+            "required": [
+              "body"
+            ]
+          },
+          {
+            "required": [
+              "content"
+            ]
+          },
+          {
+            "required": [
+              "file_content"
+            ]
+          }
+        ]
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "user_request"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "route_decision"
+            },
+            "route": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "route",
+            "source"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "repocanon_loaded"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "repokg_loaded"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "reflex_loaded"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "context_selected"
+            },
+            "items": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "items"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "file_read"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "symbol_lookup"
+            },
+            "symbol": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "symbol"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "command_started"
+            },
+            "argv": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "argv"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "command_finished"
+            },
+            "argv": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "argv"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "model_started"
+            },
+            "model": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "model"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "model_finished"
+            },
+            "model": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "model"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "patch_started"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "patch_finished"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "path"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "test_started"
+            },
+            "argv": {
+              "type": "array"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "argv"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "test_finished"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "ok"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "failure"
+            },
+            "error": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "error"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "correction"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "text"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "recovery"
+            },
+            "failed": {
+              "type": "string"
+            },
+            "fallback": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "failed",
+            "fallback",
+            "reason"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "verification"
+            },
+            "check": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "check",
+            "ok"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "task_completed"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "status"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "policy_decision"
+            },
+            "decision": {
+              "type": "string"
+            },
+            "action_class": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "decision",
+            "action_class"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "plan"
+            },
+            "plan": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "plan"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "checkpoint"
+            },
+            "stage": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at",
+            "stage"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "note"
+            }
+          },
+          "required": [
+            "type",
+            "seq",
+            "at"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "not": {
+                "enum": [
+                  "user_request",
+                  "route_decision",
+                  "repocanon_loaded",
+                  "repokg_loaded",
+                  "reflex_loaded",
+                  "context_selected",
+                  "file_read",
+                  "symbol_lookup",
+                  "command_started",
+                  "command_finished",
+                  "model_started",
+                  "model_finished",
+                  "patch_started",
+                  "patch_finished",
+                  "test_started",
+                  "test_finished",
+                  "failure",
+                  "correction",
+                  "recovery",
+                  "verification",
+                  "task_completed",
+                  "policy_decision",
+                  "plan",
+                  "checkpoint",
+                  "note"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/header"
+    },
+    {
+      "$ref": "#/$defs/event"
+    }
+  ]
+}

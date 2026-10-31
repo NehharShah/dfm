@@ -1,0 +1,23 @@
+
+
+  Counter
+    ✔ starts at zero
+    1) increments
+
+
+  1 passing (412ms)
+  1 failing
+
+  1) Counter
+       increments:
+
+      AssertionError: expected 0 to equal 1
+      + expected - actual
+
+      -0
+      +1
+
+      at Context.<anonymous> (test/Counter.ts:14:41)
+
+
+

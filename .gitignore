@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.pyright/
+dist/
+build/
+*.egg-info/
+.dfm/
+.DS_Store
+
+# Local working files: the development log and agent working notes stay on this machine
+BUILD_STATE.md
+HANDOVER.md
+MASTER_PROMPT.md
+issues/
+docs/upstream/
+docs/milestones/

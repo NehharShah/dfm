@@ -1,0 +1,12 @@
+Test Suite 'All tests' started at 2026-10-26 06:20:00.000.
+Test Suite 'CalcPackageTests.xctest' started at 2026-10-26 06:20:00.001.
+Test Suite 'CalcTests' started at 2026-10-26 06:20:00.001.
+Test Case '-[CalcTests.CalcTests testAdd]' started.
+/work/sw/Tests/CalcTests/CalcTests.swift:6: error: -[CalcTests.CalcTests testAdd] : XCTAssertEqual failed: ("-1") is not equal to ("5")
+Test Case '-[CalcTests.CalcTests testAdd]' failed (0.002 seconds).
+Test Case '-[CalcTests.CalcTests testZero]' started.
+Test Case '-[CalcTests.CalcTests testZero]' passed (0.000 seconds).
+Test Suite 'CalcTests' failed at 2026-10-26 06:20:00.003.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'All tests' failed at 2026-10-26 06:20:00.003.
+	 Executed 2 tests, with 1 failure (0 unexpected) in 0.002 (0.002) seconds

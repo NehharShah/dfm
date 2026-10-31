@@ -1,0 +1,102 @@
+[
+ {
+  "id": "PRRT_1",
+  "isResolved": false,
+  "isOutdated": false,
+  "path": "src/calc/ops.py",
+  "line": 2,
+  "originalLine": 2,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9001,
+     "body": "`add` subtracts: this should be `a + b`.",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9001",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "PRRT_2",
+  "isResolved": false,
+  "isOutdated": false,
+  "path": "src/calc/ops.py",
+  "line": 6,
+  "originalLine": 6,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9002,
+     "body": "`mul` multiplies `a` by itself; it should be `a * b`.",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9002",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "PRRT_3",
+  "isResolved": false,
+  "isOutdated": false,
+  "path": "tests/test_ops.py",
+  "line": 5,
+  "originalLine": 5,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9003,
+     "body": "The expected value is wrong: add(2, 3) should be 6.",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9003",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "PRRT_4",
+  "isResolved": true,
+  "isOutdated": false,
+  "path": "src/calc/ops.py",
+  "line": 1,
+  "originalLine": 1,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9004,
+     "body": "Please add type hints.",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9004",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "PRRT_5",
+  "isResolved": false,
+  "isOutdated": true,
+  "path": "src/calc/ops.py",
+  "line": null,
+  "originalLine": 3,
+  "comments": {
+   "nodes": [
+    {
+     "databaseId": 9005,
+     "body": "Old comment about a removed helper.",
+     "url": "https://github.com/acme/widget/pull/8#discussion_r9005",
+     "author": {
+      "login": "user4"
+     }
+    }
+   ]
+  }
+ }
+]

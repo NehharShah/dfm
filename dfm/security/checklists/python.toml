@@ -1,0 +1,82 @@
+files = '\.pyi?$'
+
+[[rule]]
+id = "py-sql-format"
+category = "injection"
+severity = "HIGH"
+title = "SQL built with string formatting"
+pattern = '''\.(execute|executemany|raw)\(\s*(f["']|["'][^"']*["']\s*(%|\.format\())'''
+why = "interpolating values into SQL enables injection; pass parameters separately"
+
+[[rule]]
+id = "py-shell"
+category = "injection"
+severity = "HIGH"
+title = "shell command with interpolated input"
+pattern = '''(os\.system|os\.popen|subprocess\.\w+)\(\s*f["']|shell\s*=\s*True'''
+why = "shell strings with interpolated values enable command injection; pass an argument list"
+
+[[rule]]
+id = "py-eval"
+category = "injection"
+severity = "HIGH"
+title = "eval/exec of dynamic input"
+pattern = '\b(eval|exec)\('
+unless = 'literal_eval'
+why = "eval/exec run arbitrary code when any part of the input is attacker-controlled"
+
+[[rule]]
+id = "py-pickle"
+category = "deserialization"
+severity = "HIGH"
+title = "unsafe deserialization"
+pattern = '\b(pickle|cPickle|dill|shelve|marshal)\.loads?\(|yaml\.load\((?![^)]*SafeLoader)|yaml\.unsafe_load\('
+why = "deserializing untrusted data with these loaders executes code"
+
+[[rule]]
+id = "py-ssrf"
+category = "ssrf"
+severity = "MEDIUM"
+title = "outbound request to a caller-supplied URL"
+pattern = '(requests|httpx|urllib\.request|aiohttp\.ClientSession\(\)?)\.?\w*\.?(get|post|put|request|urlopen)\(\s*(request\.|req\.|params\[|url\b|user_url|target)'
+why = "fetching URLs the caller controls lets them reach internal services (SSRF); allow-list hosts"
+
+[[rule]]
+id = "py-path-traversal"
+category = "path-traversal"
+severity = "HIGH"
+title = "file path built from request input"
+pattern = '(open|send_file|send_from_directory|Path|os\.path\.join)\([^)]*(request\.(args|form|values|json|files)|params\[|kwargs\[)'
+why = "user-controlled path segments can escape the intended directory (../); normalize and check"
+
+[[rule]]
+id = "py-jwt-noverify"
+category = "authz"
+severity = "HIGH"
+title = "JWT decoded without verification"
+pattern = '''verify_signature["']?\s*:\s*False|jwt\.decode\([^)]*verify\s*=\s*False|algorithms\s*=\s*\[\s*["']none'''
+why = "unverified tokens can be forged"
+
+[[rule]]
+id = "py-debug-server"
+category = "exposure"
+severity = "MEDIUM"
+title = "debug mode enabled"
+pattern = '(app\.run\([^)]*debug\s*=\s*True|DEBUG\s*=\s*True)'
+why = "debug servers expose interactive consoles and stack traces"
+
+[[rule]]
+id = "py-insecure-random"
+category = "crypto"
+severity = "MEDIUM"
+title = "non-cryptographic randomness for a secret"
+pattern = '(?i:token|secret|password|nonce|salt|otp|key)\w*\s*=\s*.*\brandom\.(random|randint|choice|choices|getrandbits)\('
+why = "the random module is predictable; use secrets"
+
+[[rule]]
+id = "py-mktemp"
+category = "path-traversal"
+severity = "LOW"
+title = "tempfile.mktemp race"
+pattern = 'tempfile\.mktemp\('
+why = "mktemp returns a name another process can claim first; use mkstemp/NamedTemporaryFile"

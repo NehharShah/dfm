@@ -1,0 +1,6 @@
+{"ImportPath":"example.com/calc/calc [example.com/calc/calc.test]","Action":"build-output","Output":"# example.com/calc/calc [example.com/calc/calc.test]\n"}
+{"ImportPath":"example.com/calc/calc [example.com/calc/calc.test]","Action":"build-output","Output":"calc/calc.go:4:9: invalid operation: a - \"x\" (mismatched types int and untyped string)\n"}
+{"ImportPath":"example.com/calc/calc [example.com/calc/calc.test]","Action":"build-fail"}
+{"Time":"2026-10-26T06:15:30.989835-04:00","Action":"start","Package":"example.com/calc/calc"}
+{"Time":"2026-10-26T06:15:30.989915-04:00","Action":"output","Package":"example.com/calc/calc","Output":"FAIL\texample.com/calc/calc [build failed]\n","OutputType":"frame"}
+{"Time":"2026-10-26T06:15:30.989928-04:00","Action":"fail","Package":"example.com/calc/calc","Elapsed":0,"FailedBuild":"example.com/calc/calc [example.com/calc/calc.test]"}

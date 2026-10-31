@@ -1,0 +1,49 @@
+files = '\.(ya?ml|tf|tfvars|json|hcl)$|Dockerfile'
+
+[[rule]]
+id = "k8s-privileged"
+category = "iac"
+severity = "HIGH"
+title = "privileged container"
+pattern = 'privileged:\s*true|allowPrivilegeEscalation:\s*true|hostNetwork:\s*true|hostPID:\s*true|hostPath:'
+why = "privileged or host-namespace pods can take over the node"
+
+[[rule]]
+id = "k8s-root"
+category = "iac"
+severity = "MEDIUM"
+title = "container runs as root"
+pattern = 'runAsUser:\s*0\b|runAsNonRoot:\s*false|^\s*USER\s+root\s*$'
+why = "running as root widens the impact of any container escape"
+
+[[rule]]
+id = "k8s-rbac-wildcard"
+category = "iac"
+severity = "HIGH"
+title = "RBAC wildcard"
+pattern = '''(verbs|resources|apiGroups):\s*\[\s*["']\*["']|^\s*-\s*["']\*["']\s*$|cluster-admin'''
+why = "wildcard RBAC grants far more than the workload needs"
+
+[[rule]]
+id = "iam-wildcard"
+category = "iac"
+severity = "HIGH"
+title = "IAM wildcard action or resource"
+pattern = '''"Action"\s*:\s*"\*"|"Resource"\s*:\s*"\*"|actions\s*=\s*\[\s*"\*"\s*\]'''
+why = "wildcard IAM permissions violate least privilege"
+
+[[rule]]
+id = "net-open-ingress"
+category = "iac"
+severity = "HIGH"
+title = "ingress open to the internet"
+pattern = '''cidr_blocks\s*=\s*\[\s*"0\.0\.0\.0/0"|0\.0\.0\.0/0|::/0'''
+why = "world-open ingress exposes the service; restrict the source range"
+
+[[rule]]
+id = "storage-public"
+category = "iac"
+severity = "HIGH"
+title = "publicly readable storage"
+pattern = '''acl\s*=\s*"public-read|block_public_acls\s*=\s*false|PublicAccessBlock.*false'''
+why = "public buckets leak data"

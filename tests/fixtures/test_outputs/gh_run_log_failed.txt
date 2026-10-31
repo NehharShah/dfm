@@ -1,0 +1,57 @@
+typing	UNKNOWN STEP	﻿2026-10-07T14:01:54.0905111Z Current runner version: '2.337.0'
+typing	UNKNOWN STEP	2026-10-07T14:01:54.0934307Z ##[group]Runner Image Provisioner
+typing	UNKNOWN STEP	2026-10-07T14:01:54.0935284Z Hosted Compute Agent
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7730304Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7731850Z with:
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7732493Z   persist-credentials: false
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7733223Z   repository: acme/widget
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7739440Z   token: ***
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7740367Z   ssh-strict: true
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7741014Z   ssh-user: git
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7741633Z   clean: true
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7742317Z   sparse-checkout-cone-mode: true
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7743123Z   fetch-depth: 1
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7743773Z   fetch-tags: false
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7744435Z   show-progress: true
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7745090Z   lfs: false
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7745717Z   submodules: false
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7746270Z   set-safe-directory: true
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7746788Z   allow-unsafe-pr-checkout: false
+typing	UNKNOWN STEP	2026-10-07T14:01:55.7747737Z ##[endgroup]
+typing	UNKNOWN STEP	2026-10-07T14:02:01.9462114Z [command]/usr/bin/tar -xf /home/runner/work/_temp/4a3af258-dd7f-485d-9fcb-84ab2fb1b0e2/cache.tzst -P -C /home/runner/work/widget/widget --use-compress-program unzstd
+typing	UNKNOWN STEP	2026-10-07T14:02:01.9646730Z Cache restored successfully
+typing	UNKNOWN STEP	2026-10-07T14:02:01.9726027Z Cache restored from key: mypy|6219c17a87bef51f7cdb69f96a7dbe347a62ff011e5d7ce1dc032b93b0079c34
+typing	UNKNOWN STEP	2026-10-07T14:02:01.9863341Z ##[group]Run uv run --locked --no-default-groups --group dev tox run -e typing
+typing	UNKNOWN STEP	2026-10-07T14:02:01.9864022Z ^[[36;1muv run --locked --no-default-groups --group dev tox run -e typing^[[0m
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0098382Z shell: /usr/bin/bash -e {0}
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0099212Z env:
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0099540Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0100200Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0100592Z   pythonLocation: /opt/hostedtoolcache/Python/3.14.7/x64
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0101028Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.14.7/x64/lib/pkgconfig
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0101466Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.14.7/x64
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0101852Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.14.7/x64
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0102265Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.14.7/x64
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0102660Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.14.7/x64/lib
+typing	UNKNOWN STEP	2026-10-07T14:02:02.0103036Z ##[endgroup]
+typing	UNKNOWN STEP	2026-10-07T14:02:03.3229192Z Using CPython 3.14.7 interpreter at: /opt/hostedtoolcache/Python/3.14.7/x64/bin/python3
+typing	UNKNOWN STEP	2026-10-07T14:02:03.3229739Z Creating virtual environment at: .venv
+typing	UNKNOWN STEP	2026-10-07T14:02:03.3286051Z    Building widget @ file:///home/runner/work/widget/widget
+typing	UNKNOWN STEP	2026-10-07T14:02:04.5423477Z       Built widget @ file:///home/runner/work/widget/widget
+typing	UNKNOWN STEP	2026-10-07T14:02:04.5517222Z Installed 23 packages in 8ms
+typing	UNKNOWN STEP	2026-10-07T14:02:06.6201275Z typing: venv> .venv/bin/uv venv -p /home/runner/work/widget/widget/.venv/bin/python --allow-existing '--prompt=widget[typing]' --python-preference system /home/runner/work/widget/widget/.tox/typing
+typing	UNKNOWN STEP	2026-10-07T14:02:06.6989105Z typing: uv-sync> .venv/bin/uv sync --locked --python-preference system --no-default-groups --no-editable --reinstall-package Flask --group typing -p /home/runner/work/widget/widget/.venv/bin/python
+typing	UNKNOWN STEP	2026-10-07T14:02:07.9858527Z typing: freeze> .venv/bin/uv --color never pip freeze
+typing	UNKNOWN STEP	2026-10-07T14:02:08.0010716Z typing: asgiref==3.12.1,ast-serialize==0.6.0,blinker==1.9.0,cffi==2.1.0,click==8.4.2,cryptography==49.0.0,widget @ file:///home/runner/work/widget/widget,iniconfig==2.3.0,itsdangerous==2.2.0,jinja2==3.1.6,librt==0.13.0,markupsafe==3.0.3,mypy==2.3.0,mypy-extensions==1.1.0,nodeenv==1.10.0,packaging==26.2,pathspec==1.1.1,pluggy==1.6.0,pycparser==3.0,pygments==2.20.0,pyright==1.1.411,pytest==9.1.1,python-dotenv==1.2.2,types-contextvars==2.4.7.3,types-dataclasses==0.6.6,typing-extensions==4.16.0,werkzeug==3.1.8
+typing	UNKNOWN STEP	2026-10-07T14:02:08.0013506Z typing: commands[0]> mypy
+typing	UNKNOWN STEP	2026-10-07T14:02:09.0770745Z src/widget/app.py:206: error: Incompatible types in assignment (expression has
+typing	UNKNOWN STEP	2026-10-07T14:02:09.0771705Z type "Mapping[str, Any]", base class "App" defined the type as "dict[str, Any]")
+typing	UNKNOWN STEP	2026-10-07T14:02:09.0772574Z  [assignment]
+typing	UNKNOWN STEP	2026-10-07T14:02:09.0772984Z         default_config: cabc.Mapping[str, t.Any] = {
+typing	UNKNOWN STEP	2026-10-07T14:02:09.0773500Z                                                    ^
+typing	UNKNOWN STEP	2026-10-07T14:02:09.1745382Z Found 1 error in 1 file (checked 27 source files)
+typing	UNKNOWN STEP	2026-10-07T14:02:09.1823366Z typing: exit 1 (1.18 seconds) /home/runner/work/widget/widget> mypy pid=2591
+typing	UNKNOWN STEP	2026-10-07T14:02:09.1828706Z   typing: FAIL code 1 (2.57=setup[1.39]+cmd[1.18] seconds)
+typing	UNKNOWN STEP	2026-10-07T14:02:09.1829303Z   evaluation failed :( (2.65 seconds)
+typing	UNKNOWN STEP	2026-10-07T14:02:09.2494196Z ##[error]Process completed with exit code 1.
+typing	UNKNOWN STEP	2026-10-07T14:02:09.2625685Z Post job cleanup.

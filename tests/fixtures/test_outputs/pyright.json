@@ -1,0 +1,30 @@
+{
+    "version": "1.1.414",
+    "time": "1792991427834",
+    "generalDiagnostics": [
+        {
+            "file": "/work/py/typed.py",
+            "severity": "error",
+            "message": "Type \"int\" is not assignable to return type \"str\"\n  \"int\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 1,
+                    "character": 11
+                },
+                "end": {
+                    "line": 1,
+                    "character": 12
+                }
+            },
+            "rule": "reportReturnType"
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 1,
+        "errorCount": 1,
+        "warningCount": 0,
+        "informationCount": 0,
+        "timeInSec": 0.074
+    }
+}
+

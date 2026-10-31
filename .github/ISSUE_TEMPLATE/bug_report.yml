@@ -1,0 +1,51 @@
+name: Bug report
+description: DFM did something wrong or crashed.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A sandbox, policy or redaction bypass is a security issue: please report it privately
+        (see SECURITY.md) instead of here. Check that logs and traces you paste contain no secrets.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command you ran, what DFM did, and what you expected.
+      placeholder: |
+        dfm implement "..."
+        Expected ... but DFM ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: A minimal repository, file or command that triggers it, if you can.
+  - type: textarea
+    id: doctor
+    attributes:
+      label: dfm doctor
+      description: Output of `dfm --version` and `dfm doctor`.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: machine
+    attributes:
+      label: Machine
+      description: macOS version, chip and memory.
+      placeholder: macOS 26.1, M4 Pro, 48 GB
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Local model
+      description: The coder in use (`dfm models`), if the bug involves model output.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or trace excerpt
+      description: The relevant part of the session trace (`dfm sessions export`) or the error.
+      render: text

@@ -1,0 +1,17 @@
+files = '\.cairo$'
+
+[[rule]]
+id = "cairo-tx-origin"
+category = "smart-contract"
+severity = "HIGH"
+title = "authorization via the transaction's account"
+pattern = 'get_tx_info\(\)[^;]*account_contract_address'
+why = "the transaction origin is not the caller; authorize with get_caller_address"
+
+[[rule]]
+id = "cairo-library-call"
+category = "smart-contract"
+severity = "HIGH"
+title = "library call / class replacement added"
+pattern = 'library_call_syscall|replace_class_syscall|LibraryDispatcher'
+why = "running or installing foreign class code must be restricted to a trusted, fixed class hash"

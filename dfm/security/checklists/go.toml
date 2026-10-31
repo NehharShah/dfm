@@ -1,0 +1,41 @@
+files = '\.go$'
+
+[[rule]]
+id = "go-sql-sprintf"
+category = "injection"
+severity = "HIGH"
+title = "SQL built with fmt.Sprintf"
+pattern = '''\.(Query|QueryRow|Exec|QueryContext|ExecContext)\w*\([^)]*fmt\.Sprintf\(|fmt\.Sprintf\(\s*"(SELECT|INSERT|UPDATE|DELETE)'''
+why = "formatting values into SQL enables injection; use placeholders"
+
+[[rule]]
+id = "go-shell"
+category = "injection"
+severity = "HIGH"
+title = "shell command with interpolated input"
+pattern = '''exec\.Command(Context)?\([^)]*"(sh|bash)",\s*"-c"'''
+why = "sh -c with interpolated input enables command injection"
+
+[[rule]]
+id = "go-path-traversal"
+category = "path-traversal"
+severity = "HIGH"
+title = "file path built from request input"
+pattern = '(os\.Open|os\.ReadFile|http\.ServeFile|filepath\.Join)\([^)]*(r\.URL|r\.Form|r\.PostForm|URL\.Query\(\))'
+why = "user-controlled path segments can escape the intended directory"
+
+[[rule]]
+id = "go-ssrf"
+category = "ssrf"
+severity = "MEDIUM"
+title = "outbound request to a caller-supplied URL"
+pattern = 'http\.(Get|Post|NewRequest\w*)\([^)]*(r\.URL\.Query|r\.FormValue)'
+why = "fetching URLs the caller controls enables SSRF"
+
+[[rule]]
+id = "go-math-rand"
+category = "crypto"
+severity = "MEDIUM"
+title = "math/rand imported for security-sensitive code"
+pattern = '"math/rand"'
+why = "math/rand is predictable; use crypto/rand for tokens and keys"

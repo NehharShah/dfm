@@ -1,0 +1,41 @@
+files = '(^|/)\.github/workflows/.+\.ya?ml$|(^|/)\.gitlab-ci\.yml$'
+
+[[rule]]
+id = "ci-prt"
+category = "ci"
+severity = "HIGH"
+title = "pull_request_target trigger"
+pattern = 'pull_request_target'
+why = "runs untrusted PR code with a write token and secrets unless it never checks out the PR head"
+
+[[rule]]
+id = "ci-write-perms"
+category = "ci"
+severity = "HIGH"
+title = "CI token permissions widened"
+pattern = 'permissions:\s*write-all|(contents|packages|id-token|actions|pull-requests|deployments):\s*write'
+why = "write tokens in CI are a supply-chain risk; grant the minimum per job"
+
+[[rule]]
+id = "ci-script-injection"
+category = "ci"
+severity = "HIGH"
+title = "untrusted event data in a run step"
+pattern = '\$\{\{\s*github\.(event\.(issue|pull_request|comment|review|head_commit|commits)|head_ref)[^}]*\}\}'
+why = "titles, bodies and branch names are attacker-controlled; pass them via env, not inline"
+
+[[rule]]
+id = "ci-unpinned-action"
+category = "ci"
+severity = "LOW"
+title = "third-party action not pinned to a commit"
+pattern = 'uses:\s*(?!actions/|github/|\./)[\w.-]+/[\w.-]+@(?![0-9a-f]{40}\b)'
+why = "a moved tag can run different code; pin third-party actions to a full SHA"
+
+[[rule]]
+id = "ci-curl-pipe"
+category = "ci"
+severity = "MEDIUM"
+title = "remote script piped to a shell"
+pattern = '(curl|wget)[^|]*\|\s*(sudo\s+)?(ba)?sh'
+why = "executes whatever the server returns at build time"

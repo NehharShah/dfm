@@ -1,0 +1,23 @@
+[
+ {
+  "bucket": "fail",
+  "link": "https://github.com/acme/widget/actions/runs/1/job/1",
+  "name": "test (ubuntu)",
+  "state": "FAILURE",
+  "workflow": "CI"
+ },
+ {
+  "bucket": "pass",
+  "link": "https://github.com/acme/widget/actions/runs/1/job/2",
+  "name": "lint",
+  "state": "SUCCESS",
+  "workflow": "CI"
+ },
+ {
+  "bucket": "pass",
+  "link": "https://github.com/acme/widget/actions/runs/1/job/3",
+  "name": "build",
+  "state": "SUCCESS",
+  "workflow": "CI"
+ }
+]
