@@ -46,6 +46,48 @@ You are responsible for complying with the license of each model you download.
 
 ## Daily use
 
+### Interactive session
+
+Run `dfm` in a repository. Type what you want done, or ask a question; DFM shows each step
+as it runs (the file it reads, the edit with its diff, the command, the test result) and ends
+each request with what it verified and what it did not.
+
+```text
+› fix the failing test
+● Baseline tests pytest
+  ⎿ 0 passed, 1 failed
+● Edit src/calc/ops.py  fix the operator
+    -    return a - b
+    +    return a + b
+  ⎿ 1 passed, 0 failed
+
+✓ completed: fixed add
+Changed  src/calc/ops.py
+Verified
+  tests pass: `pytest` (exit 0)
+```
+
+The local model loads on the first request and stays loaded until it has been idle for ten
+minutes. Requests that change code run the same loop, policy and sandbox as `dfm implement`;
+questions are answered from repository facts and never edit; "review my changes" reviews the
+working-tree diff. Earlier requests in the session are context for later ones, and DFM can keep
+editing files it changed earlier. Once you edit such a file yourself, it is protected again.
+
+| Command | Does |
+|---|---|
+| `/diff` | the working-tree diff against HEAD |
+| `/undo` | revert the files DFM changed in its latest request (files you changed since are kept) |
+| `/plan <task>` | plan without editing |
+| `/review` | review the working-tree diff |
+| `/ask <question>`, `/do <task>` | force a read-only answer, or the agent loop |
+| `/status`, `/clear`, `/help`, `/exit` | session state; forget earlier requests; commands; end |
+
+Ctrl-C stops the current request and keeps the session; Ctrl-D or `/exit` ends it. Confirmations
+appear inline, and Ctrl-C at a confirmation answers no. Without a terminal (pipes, CI), `dfm`
+lists the commands instead; `dfm chat` starts a session explicitly.
+
+### Single commands
+
 Run commands inside a repository, or pass `--repo PATH`.
 
 | Task | Command |

@@ -30,10 +30,14 @@ git clone https://github.com/NehharShah/dfm && cd dfm
 uv sync --extra mlx
 uv run dfm doctor                          # check this machine
 uv run dfm setup                           # choose a local model
-uv run dfm implement "fix the failing test"
+uv run dfm                                 # interactive session in this repository
 ```
 
 Or install it as a command: `uv tool install dfm-agent` (from PyPI).
+
+`dfm` in a repository starts an interactive session: type what you want done, watch each step
+run, and `/undo` the last request if you don't want it. Single commands such as
+`dfm implement "fix the failing test"` do one task and exit.
 
 ## How it works
 

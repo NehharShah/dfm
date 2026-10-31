@@ -38,11 +38,13 @@ class AskAnswer:
     degraded: list[str] = field(default_factory=lambda: [])
 
 
-async def ask(rt: Runtime, question: str) -> AskAnswer:
+async def ask(rt: Runtime, question: str, decision: RouteDecision | None = None) -> AskAnswer:
+    """`decision`: the route a caller already chose (the interactive session routes first)."""
     rt.event("user_request", text=question)
-    decision = await rt.router.route(
-        question, RoutingContext(apple_available=rt.pool.apple is not None)
-    )
+    if decision is None:
+        decision = await rt.router.route(
+            question, RoutingContext(apple_available=rt.pool.apple is not None)
+        )
     if is_resume_request(question):
         return AskAnswer(describe_interrupted(rt), decision, "DFM session history", None)
     intel = await gather(rt.repo, rt.canon, rt.graph)

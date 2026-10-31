@@ -8,7 +8,7 @@ user, ASK means DENY.
 import asyncio
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Protocol
 
@@ -78,10 +78,18 @@ class InteractiveApprover:
         input_fn: Callable[[str], str] = input,
         console: Console | None = None,
         is_tty: Callable[[], bool] = lambda: sys.stdin.isatty(),
+        ainput: Callable[[str], Awaitable[str]] | None = None,
     ) -> None:
         self._input = input_fn
         self._console = console or Console(stderr=True)
         self._is_tty = is_tty
+        # the interactive session reads answers with its own (cancellable) prompt
+        self._ainput = ainput
+
+    async def _read(self, prompt: str) -> str:
+        if self._ainput is not None:
+            return await self._ainput(prompt)
+        return await asyncio.to_thread(self._input, prompt)
 
     async def ask(self, action: ProposedAction, verdict: PolicyVerdict) -> Approval:
         if not self._is_tty():
@@ -94,11 +102,9 @@ class InteractiveApprover:
         )
         if verdict.confirmation is Confirmation.HARD:
             phrase = _plain(hard_phrase(action))
-            typed = await asyncio.to_thread(self._input, f"Type '{phrase}' to allow once: ")
+            typed = await self._read(f"Type '{phrase}' to allow once: ")
             return Approval.ONCE if typed.strip() == phrase else Approval.DENY
-        answer = await asyncio.to_thread(
-            self._input, "Allow? [y] once / [s] this session / [N] no: "
-        )
+        answer = await self._read("Allow? [y] once / [s] this session / [N] no: ")
         match answer.strip().lower():
             case "y" | "yes":
                 return Approval.ONCE
