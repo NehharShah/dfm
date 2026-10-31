@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-31
+
 ### Added
 
 - `dfm` in a terminal starts an interactive session (also `dfm chat`). The local model loads once
@@ -19,6 +21,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 - Without a terminal, `dfm` lists the commands instead of saying the session is not built.
 - New dependency: `prompt-toolkit`, for the session's input line.
+- CI tests Python 3.12 and 3.15, the oldest supported version and the newest.
+
+### Fixed
+
+- On Python 3.14 and later, the configuration reference showed types such as `int | None` as
+  `Union`.
 
 ## [0.0.2] - 2026-10-31
 
