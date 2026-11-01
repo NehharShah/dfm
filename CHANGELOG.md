@@ -5,7 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
-Fixes from a full review of `main` (threat T16 and ADR 0009 amended).
+## [0.0.5] - 2026-11-01
+
+Fixes from a full review of `main` (threat T16 and ADR 0009 amended). Configuration keys
+nothing read were removed (see Removed); a repository `.dfm/config.toml` that set them now gets
+an "unknown key" warning and nothing else changes.
 
 ### Security
 

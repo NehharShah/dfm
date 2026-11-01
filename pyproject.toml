@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 # Distribution name (PyPI); the import package and the command stay `dfm` (ADR 0014).
 name = "dfm-agent"
-version = "0.0.4"
+version = "0.0.5"
 description = "Developer Foundation Model: a local, privacy-first engineering agent for Apple Silicon."
 readme = "README.md"
 license = { text = "MIT" }
