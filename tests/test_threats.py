@@ -7,19 +7,15 @@ effective configuration is, and which files exist afterwards. Run alone: `pytest
 
 import re
 import shutil
-import sys
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
-from dfm.config import ConfigOverrides, DFMConfig, load_config, state_dirs
-from dfm.execution import ExecutionEnvironment
+from dfm.config import ConfigOverrides, DFMConfig, load_config
 from dfm.orchestration.implement import ImplementOptions, implement
 from dfm.orchestration.runtime import Runtime
 from dfm.policy import Decision, Policy
-from dfm.processes import ProcessManager, ProcessRegistry
-from dfm.security.sandbox import Sandbox
 from dfm.tools.errors import ToolError
 from dfm.tools.filesystem import FsTools
 from dfm.tools.shell.classify import classify
@@ -101,19 +97,7 @@ async def test_t3_no_secret_bytes_in_any_model_request(planted_run) -> None:  # 
 
 
 def sandboxed(repo: Path, tmp_path: Path, config: DFMConfig | None = None) -> CommandRunner:
-    environ = {
-        "HOME": str(tmp_path / "home"),
-        "PATH": f"{Path(sys.executable).parent}:/usr/bin:/bin",
-    }
-    env = ExecutionEnvironment.create(
-        repo, config or DFMConfig(), session_id="threat", environ=environ, dirs=state_dirs(environ)
-    )
-    return CommandRunner(
-        env,
-        ProcessManager(ProcessRegistry(env.tmp / "p")),
-        Policy(config or DFMConfig()),
-        wrap=Sandbox().wrap,
-    )
+    return sandboxed_runner(repo, tmp_path, config=config)
 
 
 async def test_t4_network_to_unknown_hosts_is_denied(tmp_path: Path) -> None:

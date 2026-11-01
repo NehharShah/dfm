@@ -1,10 +1,8 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-from dfm.config import DFMConfig, state_dirs
-from dfm.execution import ExecutionEnvironment
+from dfm.config import DFMConfig
 from dfm.integrations.repocanon import RepoCanonProvider, degraded_discovery
 from dfm.policy import Policy
 from dfm.processes import ProcessManager, ProcessRegistry, ProcessResult
@@ -14,17 +12,13 @@ from dfm.tools.languages import PythonAdapter
 from dfm.tools.results import FailedTest
 from dfm.tools.shell.runner import CommandRunner
 from tests import repo_fixtures as fx
-
-VENV_BIN = str(Path(sys.executable).parent)
+from tests.helpers import make_env
 
 
 def make_runner(
     repo: Path, tmp_path: Path, events: list[tuple[str, dict[str, object]]] | None = None
 ) -> CommandRunner:
-    environ = {"HOME": str(tmp_path / "home"), "PATH": f"{VENV_BIN}:/usr/bin:/bin"}
-    env = ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="py", environ=environ, dirs=state_dirs(environ)
-    )
+    env = make_env(repo, tmp_path, session_id="py")
     pm = ProcessManager(ProcessRegistry(env.tmp / "p"))
     sink = (lambda t, **kw: events.append((t, kw))) if events is not None else None
     return CommandRunner(env, pm, Policy(DFMConfig()), on_event=sink)

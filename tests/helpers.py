@@ -6,8 +6,8 @@ import sys
 from collections.abc import AsyncIterator, Mapping
 from pathlib import Path
 
-from dfm.config import DFMConfig, state_dirs
-from dfm.execution import ExecutionEnvironment
+from dfm.config import ConfigOverrides, DFMConfig, state_dirs
+from dfm.execution import ExecutionEnvironment, ResourceLimits
 from dfm.models import GenerateRequest, GenerateResult, ModelHealth
 from dfm.models.mlx.discovery import default_roots, discover
 from dfm.policy import Policy
@@ -69,20 +69,53 @@ class ScriptedCoder:
         yield ""
 
 
+# The PATH tests give subprocesses: the interpreter running the tests (so `pytest`, `ruff`,
+# `pyright` resolve to this venv however pytest was invoked) and the system directories.
+# Never the developer's shell PATH: tests must not find the real `gh`, `kubectl` or `cargo`.
+VENV_BIN = str(Path(sys.executable).parent)
+TEST_PATH = f"{VENV_BIN}:/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+def make_env(
+    repo: Path,
+    tmp_path: Path,
+    *,
+    home: Path | None = None,
+    path: str = TEST_PATH,
+    environ: Mapping[str, str] | None = None,
+    config: DFMConfig | None = None,
+    session_id: str = "test",
+    limits: ResourceLimits | None = None,
+    overrides: ConfigOverrides | None = None,
+) -> ExecutionEnvironment:
+    """An ExecutionEnvironment for `repo` with HOME and DFM's state under `tmp_path`."""
+    merged = {"HOME": str(home or tmp_path / "home"), "PATH": path, **(environ or {})}
+    return ExecutionEnvironment.create(
+        repo,
+        config or DFMConfig(),
+        session_id=session_id,
+        environ=merged,
+        dirs=state_dirs(merged),
+        limits=limits,
+        overrides=overrides,
+    )
+
+
 def sandboxed_runner(
-    repo: Path, tmp_path: Path, *bin_dirs: str, env: Mapping[str, str] | None = None
+    repo: Path,
+    tmp_path: Path,
+    *bin_dirs: str,
+    env: Mapping[str, str] | None = None,
+    config: DFMConfig | None = None,
 ) -> CommandRunner:
     """A CommandRunner exactly as the agent loop builds one: policy plus the macOS sandbox
     (network off unless a command carries an authorized network category)."""
-    path = ":".join([*bin_dirs, str(Path(sys.executable).parent), "/usr/bin", "/bin"])
-    environ = {"HOME": str(tmp_path / "home"), "PATH": path, **(env or {})}
-    execution = ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="live", environ=environ, dirs=state_dirs(environ)
-    )
+    path = ":".join([*bin_dirs, TEST_PATH])
+    execution = make_env(repo, tmp_path, path=path, environ=env, config=config, session_id="live")
     return CommandRunner(
         execution,
         ProcessManager(ProcessRegistry(execution.tmp / "p")),
-        Policy(DFMConfig()),
+        Policy(config or DFMConfig()),
         wrap=Sandbox().wrap,
     )
 

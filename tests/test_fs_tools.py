@@ -7,8 +7,7 @@ from pathlib import Path
 import pytest
 
 import dfm.tools.filesystem.tools as tools_mod
-from dfm.config import DFMConfig, state_dirs
-from dfm.execution import ExecutionEnvironment
+from dfm.config import DFMConfig
 from dfm.policy import Approval, Policy, PolicyVerdict, ProposedAction
 from dfm.recovery import Checkpointer
 from dfm.tools.filesystem import (
@@ -22,6 +21,7 @@ from dfm.tools.filesystem import (
     parse_unified,
 )
 from tests import repo_fixtures as fx
+from tests.helpers import make_env
 
 SOURCE = "def add(a, b):\n    return a - b\n\n\ndef sub(a, b):\n    return a - b\n"
 
@@ -46,10 +46,7 @@ def repo(git_repo: Path) -> Path:
 def make_tools(
     repo: Path, tmp_path: Path, approver: Approve | None = None, **kw: object
 ) -> FsTools:
-    environ = {"HOME": str(tmp_path / "home"), "PATH": "/usr/bin:/bin"}
-    env = ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="fs", environ=environ, dirs=state_dirs(environ)
-    )
+    env = make_env(repo, tmp_path, session_id="fs")
     return FsTools(env, Policy(DFMConfig(), approver), **kw)  # type: ignore[arg-type]
 
 

@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from dfm.config import ConfigOverrides, DFMConfig, state_dirs
+from dfm.config import ConfigOverrides
 from dfm.execution import BoundaryViolation, ExecutionEnvironment, scrub_env
 from dfm.policy.network import NetworkMode
 from dfm.tools.shell.classify import classify
+from tests.helpers import make_env
 
 
 @pytest.fixture
@@ -35,9 +36,8 @@ def make(
     environ: dict[str, str] | None = None,
     overrides: ConfigOverrides | None = None,
 ) -> ExecutionEnvironment:
-    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", **(environ or {})}
-    return ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="s1", environ=env, dirs=state_dirs(env), overrides=overrides
+    return make_env(
+        repo, home.parent, home=home, environ=environ, overrides=overrides, session_id="s1"
     )
 
 

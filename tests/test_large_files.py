@@ -9,13 +9,14 @@ from typing import Any
 
 import pytest
 
-from dfm.config import DFMConfig, state_dirs
+from dfm.config import DFMConfig
 from dfm.context.engine import ContextEngine
 from dfm.execution import ExecutionEnvironment, ResourceLimits
 from dfm.policy import Policy
 from dfm.sessions import SessionStore
 from dfm.tools.filesystem import FsTools
 from dfm.tools.filesystem.kinds import FileKind, classify_file
+from tests.helpers import make_env as shared_make_env
 
 GB = 1024**3
 
@@ -23,10 +24,7 @@ GB = 1024**3
 def make_env(
     repo: Path, tmp_path: Path, limits: ResourceLimits | None = None
 ) -> ExecutionEnvironment:
-    environ = {"HOME": str(tmp_path / "home"), "PATH": "/usr/bin:/bin"}
-    return ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="lf", environ=environ, dirs=state_dirs(environ), limits=limits
-    )
+    return shared_make_env(repo, tmp_path, session_id="lf", limits=limits)
 
 
 def sparse_jsonl(path: Path, size: int) -> Path:
