@@ -14,7 +14,11 @@ import asyncio
 import contextlib
 import os
 import signal
+import sys
+import termios
+from collections.abc import Generator
 from pathlib import Path
+from typing import TextIO
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import WordCompleter
@@ -48,6 +52,24 @@ def _history(path: Path) -> History:
         return FileHistory(str(path))
     except OSError:
         return InMemoryHistory()
+
+
+@contextlib.contextmanager
+def no_echo(stream: TextIO | None) -> Generator[None]:
+    """While a request runs, keys typed ahead are not echoed over its output. They stay in
+    the terminal's input queue and appear at the next prompt; Ctrl-C still interrupts."""
+    if stream is None or not stream.isatty():
+        yield
+        return
+    fd = stream.fileno()
+    saved = termios.tcgetattr(fd)
+    quiet = list(saved)
+    quiet[3] &= ~termios.ECHO
+    termios.tcsetattr(fd, termios.TCSANOW, quiet)
+    try:
+        yield
+    finally:
+        termios.tcsetattr(fd, termios.TCSANOW, saved)
 
 
 def _bindings() -> KeyBindings:
@@ -165,7 +187,8 @@ async def run(
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 loop.add_signal_handler(signal.SIGINT, task.cancel)
             try:
-                keep_going = await task
+                with no_echo(None if pt_input is not None else sys.stdin):
+                    keep_going = await task
             except asyncio.CancelledError:
                 if not task.cancelled():
                     raise  # the session itself is being cancelled

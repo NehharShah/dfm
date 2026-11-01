@@ -88,7 +88,9 @@ editing files it changed earlier. Once you edit such a file yourself, it is prot
 | `/ask <question>`, `/do <task>` | force a read-only answer, or the agent loop |
 | `/status`, `/clear`, `/help`, `/exit` | session state; forget earlier requests; commands; end |
 
-Ctrl-C stops the current request and keeps the session; Ctrl-D or `/exit` ends it. Confirmations
+Ctrl-C stops the current request and keeps the session; `/exit`, `exit`, `quit`, `q` or Ctrl-D
+ends it. Anything you type while a request runs is not printed over its output; it is waiting at
+the next prompt. Confirmations
 appear inline, and Ctrl-C at a confirmation answers no. Without a terminal (pipes, CI), `dfm`
 lists the commands instead; `dfm chat` starts a session explicitly.
 

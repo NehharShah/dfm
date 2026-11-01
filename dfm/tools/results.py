@@ -92,6 +92,7 @@ class TestReport:
     duration_s: float | None = None
     ran: bool = True
     exit_code: int | None = None
+    command_missing: bool = False  # the test tool itself is not installed here
 
     __test__ = False  # not a pytest test class
 
@@ -882,15 +883,25 @@ def detect_reporter(text: str) -> Reporter:
     return "pytest"
 
 
+_EXEC_FAILED = re.compile(r"execvp\(\) of '([^']+)' failed: No such file or directory")
+
+
 def parse_test_output(result: ProcessResult, reporter: Reporter = "auto") -> TestReport:
     text = result.stdout + ("\n" + result.stderr if result.stderr else "")
     if result.timed_out:
         report = TestReport(reporter, ran=False, exit_code=result.exit_code)
         report.errors.append(f"timed out after {result.duration_ms} ms")
         return report
-    if result.exit_code == 127 or "command not found" in result.stderr:
-        report = TestReport(reporter, ran=False, exit_code=result.exit_code)
-        report.errors.append(f"test command not found: {_tail(result.stderr)}")
+    # a shell says "command not found" (127); the macOS sandbox wrapper reports exit 71
+    missing = _EXEC_FAILED.search(result.stderr)
+    if result.exit_code == 127 or "command not found" in result.stderr or missing:
+        report = TestReport(reporter, ran=False, exit_code=result.exit_code, command_missing=True)
+        if missing:
+            report.errors.append(
+                f"test command not found: `{missing.group(1)}` is not installed here"
+            )
+        else:
+            report.errors.append(f"test command not found: {_tail(result.stderr)}")
         return report
     chosen = detect_reporter(text) if reporter == "auto" else reporter
     return _PARSERS[chosen](text, result.exit_code)

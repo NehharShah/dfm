@@ -247,3 +247,29 @@ def test_compaction_keeps_one_line_per_old_step() -> None:
     before = list(loop.history)
     loop._compact_history()  # pyright: ignore[reportPrivateUsage]
     assert loop.history == before  # under the limit: nothing moves, the prefix stays cached
+
+
+async def test_missing_test_tool_is_reported_and_not_hunted(
+    home: Path, repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PATH", "/usr/bin:/bin")  # git, but no pytest: the tool is missing
+    coder = ScriptedCoder(FIX, DONE)
+    outcome, rt = await run_agent(repo, coder)
+    assert "Do not look for it, install it or run it another way" in coder.prompts[0]
+    assert (repo / "src/calc/ops.py").read_text() == "def add(a, b):\n    return a + b\n"
+    assert outcome.status == "failed"  # nothing verified the change
+    assert any("not found" in item for item in outcome.not_verified)
+    notes = [e.get("text", "") for e in rt.store.load(rt.session.id).events if e["type"] == "note"]
+    assert any(n.startswith("tests cannot run here: test command not found") for n in notes)
+
+
+async def test_a_task_stops_at_its_time_limit(home: Path, repo: Path) -> None:
+    rt = Runtime.create(repo, request="fix the failing test", mode="implement")
+    coder = ScriptedCoder({"action": "read", "reason": "look", "path": "src/calc/ops.py"})
+    loop = AgentLoop(rt, coder=coder)
+    loop.time_limit_s = 0  # the limit is minutes in config; any elapsed time exceeds zero
+    outcome = await loop.run("fix the failing test")
+    await rt.close(outcome.session_status, outcome.summary)
+    assert outcome.status == "failed"
+    assert outcome.summary.startswith("time limit reached")
+    assert coder.prompts == []  # stopped before asking the model anything
