@@ -24,13 +24,16 @@ from dfm.cli.app import app
 from dfm.config import ConfigOverrides, load_config
 from dfm.models.base import GenerateRequest, GenerateResult
 from dfm.orchestration.runtime import Runtime
+from tests.helpers import path_with_tools
 
 AVAILABLE = [t for t in TASKS if all(shutil.which(tool) for tool in t.needs)]
 
 
 @pytest.fixture(autouse=True)
-def toolchains(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`home` swaps HOME; rustup and cargo still need the real toolchain directories."""
+def toolchains(home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`home` swaps HOME and isolates PATH; the fixtures need the real toolchains (found on the
+    PATH pytest started with) and rustup/cargo their real home directories."""
+    monkeypatch.setenv("PATH", path_with_tools(*sorted({tool for t in TASKS for tool in t.needs})))
     real = Path(pwd.getpwuid(os.getuid()).pw_dir)
     monkeypatch.setenv("CARGO_HOME", os.environ.get("CARGO_HOME", str(real / ".cargo")))
     monkeypatch.setenv("RUSTUP_HOME", os.environ.get("RUSTUP_HOME", str(real / ".rustup")))
