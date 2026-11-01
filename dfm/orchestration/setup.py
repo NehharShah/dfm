@@ -21,7 +21,7 @@ from dfm.execution import ExecutionEnvironment
 from dfm.integrations.repocanon import RepoCanonProvider
 from dfm.integrations.repokg import RepoKGProvider
 from dfm.models.mlx.discovery import ModelCandidate, choose, default_roots, discover, usable
-from dfm.models.mlx.model import LocalModelSpec, MLXModel, mlx_available
+from dfm.models.mlx.model import MLX_INSTALL_HINT, LocalModelSpec, MLXModel, mlx_available
 from dfm.models.resources import ModelResourceManager
 from dfm.policy import NetworkCategory, Policy
 from dfm.policy.network import NetworkPolicy
@@ -109,7 +109,7 @@ async def setup(
             "MLX",
             "fail",
             "mlx-lm not installed: no local coding model can run",
-            "uv sync --extra mlx",
+            MLX_INSTALL_HINT,
         )
 
     for name, health in (

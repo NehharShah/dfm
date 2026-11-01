@@ -44,3 +44,17 @@ def test_config_reference_covers_every_key() -> None:
     reference = (ROOT / "docs" / "config.md").read_text()
     for key in flatten(DFMConfig().model_dump()):
         assert f"`{key}`" in reference, key
+
+
+def test_threat_model_and_threat_suite_stay_in_step() -> None:
+    """Every `test_tN_*` in the threat suite is in the regression table, and every threat in the
+    table has a test named for it (T4/T7 share one; that is fine)."""
+    doc = (ROOT / "docs" / "threat-model.md").read_text()
+    suite = (ROOT / "tests" / "test_threats.py").read_text()
+    tests = set(re.findall(r"^(?:async )?def (test_t\d+[a-z0-9_]*)\(", suite, re.M))
+    threats = set(re.findall(r"^\| (T\d+) \|", doc, re.M))
+    listed = set(re.findall(r"`(test_t\d+[a-z0-9_]*)`", doc))
+    assert tests == listed, {"only in suite": tests - listed, "only in doc": listed - tests}
+    for threat in threats:
+        number = threat[1:]
+        assert any(re.search(rf"_t(\d+_)*{number}(_|$)", t) for t in tests), threat

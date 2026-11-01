@@ -1,14 +1,16 @@
 """Write single values into the user's config file (used by `dfm setup` / `dfm models use`).
 
-Reads the existing TOML, sets one dotted key, writes it back atomically and keeps
-the previous file as `config.toml.bak`. Comments in the old file are not
-preserved (the backup keeps them). Only the user config is ever written; repo
-configs are the developer's files.
+Reads the existing TOML, sets one dotted key, writes it back atomically (mode 0600, in a
+0700 directory, like every other DFM state file) and keeps the previous file as
+`config.toml.bak`. Comments in the old file are not preserved (the backup keeps them), and
+`dfm setup` says so before it writes. Only the user config is ever written; repo configs are
+the developer's files.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tomllib
 from collections.abc import Mapping
@@ -67,11 +69,14 @@ def set_user_value(dotted: str, value: Any, env: Mapping[str, str] | None = None
     # validated before the file is touched: a bad value must not leave a config that breaks
     # every later command
     validate_user_layer(tomllib.loads(text), path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     if path.exists():
         shutil.copy2(path, path.with_suffix(".toml.bak"))
+        path.with_suffix(".toml.bak").chmod(0o600)
     tmp = path.with_suffix(".toml.tmp")
-    tmp.write_text(text)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(text)
     tmp.replace(path)
     load_config(None, env=env)  # the full load (layers, warnings) succeeds too
     return path

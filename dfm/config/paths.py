@@ -33,6 +33,12 @@ def data_home(env: Mapping[str, str] | None = None) -> Path:
     return _xdg(env, "XDG_DATA_HOME", _home(env) / ".local" / "share")
 
 
+def cache_home(env: Mapping[str, str] | None = None) -> Path:
+    """Rebuildable state (the persisted KV cache): `$XDG_CACHE_HOME/dfm` or `~/.cache/dfm`."""
+    env = os.environ if env is None else env
+    return _xdg(env, "XDG_CACHE_HOME", _home(env) / ".cache")
+
+
 def user_config_path(env: Mapping[str, str] | None = None) -> Path:
     return config_home(env) / CONFIG_FILE
 

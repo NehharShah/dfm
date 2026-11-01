@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import contextlib
 import re
-import tomllib
 from pathlib import Path
 from typing import Any, cast
 
@@ -26,6 +25,7 @@ from dfm.tools.languages.base import (
     ToolCommand,
     canon_command,
     language_named,
+    read_toml,
     runs,
     which_all,
 )
@@ -52,13 +52,9 @@ def remappings(repo: Path) -> dict[str, str]:
     entries: list[str] = []
     with contextlib.suppress(OSError):
         entries += (repo / "remappings.txt").read_text().splitlines()
-    try:
-        with (repo / "foundry.toml").open("rb") as fh:
-            profile = cast(dict[str, Any], tomllib.load(fh).get("profile", {}))
-        default = cast(dict[str, Any], profile.get("default", {}))
-        entries += [str(e) for e in cast(list[Any], default.get("remappings", []))]
-    except (OSError, tomllib.TOMLDecodeError):
-        pass
+    profile = cast(dict[str, Any], read_toml(repo / "foundry.toml").get("profile", {}))
+    default = cast(dict[str, Any], profile.get("default", {}))
+    entries += [str(e) for e in cast(list[Any], default.get("remappings", []))]
     out: dict[str, str] = {}
     for entry in entries:
         entry = entry.split(":", 1)[-1].strip()  # drop a `context:` prefix

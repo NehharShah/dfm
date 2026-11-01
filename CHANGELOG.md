@@ -5,6 +5,55 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+Fixes from a full review of `main` (threat T16 and ADR 0009 amended).
+
+### Security
+
+- Commands the shell would reinterpret after classification were read as safe and then run as
+  something else: `alias`/`hash`/`export`/`set`/`unset`, non-benign `VAR=value` prefixes
+  (`PATH=`, `GIT_*`, `*_CONFIG_PATH`), `$'..'` and `{a,b}` quoting, bare `cd`, `sed` scripts
+  behind an option, multi-line `awk`, abbreviated git long options (`--har`, `--del`, `--forc`),
+  SQL comments hiding a `WHERE`, and `git rm -r`. Each is now `UNKNOWN` (ask) or its
+  destructive class, assignment values are boundary-checked, and the approver sees the whole
+  command line, not only the part that asked (T16).
+- The repository config layer (`.dfm/config.toml`) was a denylist: a repository could raise
+  `limits.*`, re-enable Reflex export or grant standing worktree consent. It is an allowlist now
+  (tighten network, turn things off, lower limits); anything else is refused.
+- Redaction missed `aws_secret_access_key = …`, `Private key: 0x…`, unquoted mnemonics and
+  several token formats; three rules were quadratic on long token-like runs. Oversized diffs
+  are cut at a file boundary before redaction.
+- The sandbox now denies repository code writes to `<repo>/.dfm`, the persisted KV cache and
+  DFM's own interpreter, and reads of shell rc/history files, other agents' state and DFM's
+  policy and traces. Read-only tools that can start programs no longer share a compound
+  command's network approval. `core.fsmonitor=false` reaches every child process.
+- `undo` verifies a recorded original against its hash before restoring it; persisted KV
+  snapshots carry a weights fingerprint and are dropped when they fail.
+
+### Fixed
+
+- Ctrl-C or a timeout left the MLX worker generating to `max_tokens`; it now stops after its
+  current token and stays loaded. Non-JSON worker output no longer crashes a task.
+- `diff -U0` hunks were inserted one line too early.
+- Services DFM started for a task are released however the task ends; a crash in the
+  interactive session is reported as a failure and the session continues.
+- Tests pass whichever way pytest is started; the suite no longer sees the developer's PATH.
+- `dfm doctor` no longer crashes when `$HOME` is missing; install remedies name the PyPI extra.
+- Stale per-session temp directories (from killed sessions) are swept after a day.
+
+### Changed
+
+- README, guide and troubleshooting lead with the PyPI install (`uv tool install
+  "dfm-agent[mlx]"`); the checkout is for development. Every document describes the code as it
+  is after this release's fixes (ADRs 0009, 0010, 0012, 0013, 0014 and 0015 carry addenda).
+
+### Removed
+
+- Config keys nothing read: `integrations.*.required`, `repokg.incremental`,
+  `reflex.use_routing_history`, `models.*.lazy_load`, `security.redact_secrets`,
+  `security.allow_home_directory_reads`, `git.preserve_dirty_worktree`, `telemetry.enabled`.
+  Redaction, the protected-path denylist and the Git guard are always on.
+- The unused routing-evidence module and the empty `dfm.tools.github` package.
+
 ## [0.0.4] - 2026-10-31
 
 ### Added

@@ -1,51 +1,20 @@
 """`dfm issue|implement-issue|pr|review-pr|fix-pr|comments N`: GitHub via gh, cache-backed."""
 
-import asyncio
 import json
-from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from dfm.cli.work_cmd import _runtime  # pyright: ignore[reportPrivateUsage]
-from dfm.integrations.github import GitHubError
+from dfm.cli.common import JsonOption, MaxSteps, RepoOption, console, execute, make_runtime
 from dfm.orchestration.agent import TaskOutcome, outcome_payload
 from dfm.orchestration.github import fix_pr, github_for, implement_issue, post_replies, review_pr
 from dfm.orchestration.implement import ImplementOptions
 from dfm.orchestration.review import SEVERITY_ORDER
-from dfm.orchestration.runtime import Runtime
-from dfm.tools.errors import ToolError
-
-console = Console()
 
 Number = Annotated[int, typer.Argument(help="Issue or pull request number.")]
-RepoOption = Annotated[Path | None, typer.Option("--repo", help="Repository root.")]
 Offline = Annotated[
     bool, typer.Option("--offline", help="Use the local cache only; do not contact GitHub.")
 ]
-JsonOption = Annotated[bool, typer.Option("--json", help="Machine-readable output.")]
-MaxSteps = Annotated[int, typer.Option("--max-steps", help="Coder steps before stopping.")]
-
-
-def _execute(rt: Runtime, work: Callable[[], Awaitable[tuple[int, str]]]) -> None:
-    """Run `work` (→ exit code, session summary); GitHub/tool errors exit 2 with a message."""
-
-    async def go() -> int:
-        try:
-            code, summary = await work()
-        except (GitHubError, ToolError) as exc:
-            await rt.close("failed", str(exc))
-            console.print(f"[red]error:[/red] {exc}")
-            return 2
-        except BaseException:
-            await rt.close("failed")
-            raise
-        await rt.close("completed" if code == 0 else "failed", summary)
-        return code
-
-    raise typer.Exit(asyncio.run(go()))
 
 
 def _print_outcome(outcome: TaskOutcome, as_json: bool, extra: dict[str, object]) -> int:
@@ -64,7 +33,7 @@ def issue(
     as_json: JsonOption = False,
 ) -> None:
     """Show a GitHub issue (live, or from the cache when GitHub is unavailable)."""
-    rt = _runtime(ctx, repo, f"show issue #{number}", "github")
+    rt = make_runtime(ctx, repo, f"show issue #{number}", "github")
 
     async def work() -> tuple[int, str]:
         cached = await github_for(rt).issue(number, refresh=not offline)
@@ -77,7 +46,7 @@ def issue(
             console.print(i.body, markup=False)
         return 0, f"issue #{number}"
 
-    _execute(rt, work)
+    execute(rt, work)
 
 
 def implement_issue_cmd(
@@ -89,7 +58,7 @@ def implement_issue_cmd(
     as_json: JsonOption = False,
 ) -> None:
     """Implement a GitHub issue in the working tree; works offline from the cache."""
-    rt = _runtime(ctx, repo, f"implement issue #{number}", "implement")
+    rt = make_runtime(ctx, repo, f"implement issue #{number}", "implement")
 
     async def work() -> tuple[int, str]:
         cached, result = await implement_issue(
@@ -99,7 +68,7 @@ def implement_issue_cmd(
         code = _print_outcome(result.outcome, as_json, {"issue": number, "source": cached.source})
         return code, result.outcome.summary
 
-    _execute(rt, work)
+    execute(rt, work)
 
 
 def pr(
@@ -110,7 +79,7 @@ def pr(
     as_json: JsonOption = False,
 ) -> None:
     """Show a pull request with its files and check results."""
-    rt = _runtime(ctx, repo, f"show PR #{number}", "github")
+    rt = make_runtime(ctx, repo, f"show PR #{number}", "github")
 
     async def work() -> tuple[int, str]:
         gh = github_for(rt)
@@ -136,7 +105,7 @@ def pr(
             console.print(f"  {mark} {check.workflow} / {check.name}: {check.state}", markup=False)
         return 0, f"PR #{number}"
 
-    _execute(rt, work)
+    execute(rt, work)
 
 
 def comments(
@@ -147,7 +116,7 @@ def comments(
     as_json: JsonOption = False,
 ) -> None:
     """List a pull request's inline review comments."""
-    rt = _runtime(ctx, repo, f"PR #{number} comments", "github")
+    rt = make_runtime(ctx, repo, f"PR #{number} comments", "github")
 
     async def work() -> tuple[int, str]:
         cached = await github_for(rt).comments(number, refresh=not offline)
@@ -159,7 +128,7 @@ def comments(
                 console.print(f"{c.path}:{c.line} ({c.author})\n  {c.body}", markup=False)
         return 0, f"{len(cached.value)} comments"
 
-    _execute(rt, work)
+    execute(rt, work)
 
 
 def review_pr_cmd(
@@ -170,7 +139,7 @@ def review_pr_cmd(
     as_json: JsonOption = False,
 ) -> None:
     """Review a pull request's diff (PR head checked out in a DFM worktree when possible)."""
-    rt = _runtime(ctx, repo, f"review PR #{number}", "review")
+    rt = make_runtime(ctx, repo, f"review PR #{number}", "review")
 
     async def work() -> tuple[int, str]:
         result = await review_pr(rt, number, refresh=not offline)
@@ -188,7 +157,7 @@ def review_pr_cmd(
         worst = min((SEVERITY_ORDER[f.severity] for f in report.findings), default=9)
         return (1 if worst <= SEVERITY_ORDER["HIGH"] else 0), f"{len(report.findings)} findings"
 
-    _execute(rt, work)
+    execute(rt, work)
 
 
 def fix_pr_cmd(
@@ -206,7 +175,7 @@ def fix_pr_cmd(
     """Triage review comments, fix the valid ones in a worktree (a patch), draft replies.
 
     Never pushes; prints the commands for you to apply and push."""
-    rt = _runtime(ctx, repo, f"fix PR #{number}", "implement")
+    rt = make_runtime(ctx, repo, f"fix PR #{number}", "implement")
 
     async def work() -> tuple[int, str]:
         fixed = await fix_pr(rt, number, ImplementOptions(max_steps=max_steps), refresh=not offline)
@@ -252,4 +221,4 @@ def fix_pr_cmd(
         ok = outcome is None or outcome.status == "completed"
         return (0 if ok else 1), outcome.summary if outcome else "triage only"
 
-    _execute(rt, work)
+    execute(rt, work)

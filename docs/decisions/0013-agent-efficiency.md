@@ -44,3 +44,12 @@ installed, the coder spent about ten minutes looking for it, with one step takin
 minutes, and stayed within its token budget. A missing test tool is now recognised inside the
 sandbox (exit 71, `execvp() … failed`), reported as "not installed here", and the coder is told
 not to look for it or install it.
+
+Addendum (2026-10-31): the persisted snapshot is keyed on more than the model path. Its metadata
+carries a fingerprint of the weight and config files (name, size, mtime) plus the mlx-lm
+version, and a hash of its token list; a file that does not match is deleted, and a snapshot
+read from disk that a generation then fails on is forgotten and deleted rather than re-persisted
+on unload. The file lives under `$XDG_CACHE_HOME/dfm/kv` and is write-denied to repository code
+(ADR 0010). Cancellation is cooperative: a `cancel` message on the worker's stdin (read on a
+thread) stops generation after the current token, so Ctrl-C and timeouts keep the loaded model
+instead of killing the worker; it is killed only if it does not answer within five seconds.

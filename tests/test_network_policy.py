@@ -70,6 +70,22 @@ def test_host_of() -> None:
     assert host_of("example.com:8080/path") == "example.com"
 
 
+@pytest.mark.parametrize(
+    "target",
+    [
+        "https://api.github.com@evil.example/x",  # a trusted name in the userinfo
+        "api.github.com@evil.example:22/x",
+        "http://localhost@evil.example/",
+        "file:///etc/passwd",
+        "",
+    ],
+)
+def test_confusable_targets_are_other_network(target: str) -> None:
+    """The host is what follows the userinfo; a trusted name before `@` buys nothing."""
+    assert host_of(target) not in {"api.github.com", "localhost"}
+    assert categorize(target) is C.OTHER
+
+
 def test_remote_inference_denied_even_when_other_network_allowed() -> None:
     config = DFMConfig(network=NetworkSettings(other_network="allow"))
     verdict = NetworkPolicy(config).check_target("https://api.anthropic.com/v1/messages")

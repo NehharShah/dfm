@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from dfm.config import ConfigOverrides, DFMConfig, state_dirs
+from dfm.config import ConfigOverrides
 from dfm.execution import BoundaryViolation, ExecutionEnvironment, scrub_env
 from dfm.policy.network import NetworkMode
 from dfm.tools.shell.classify import classify
+from tests.helpers import make_env
 
 
 @pytest.fixture
@@ -35,9 +36,8 @@ def make(
     environ: dict[str, str] | None = None,
     overrides: ConfigOverrides | None = None,
 ) -> ExecutionEnvironment:
-    env = {"HOME": str(home), "PATH": "/usr/bin:/bin", **(environ or {})}
-    return ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="s1", environ=env, dirs=state_dirs(env), overrides=overrides
+    return make_env(
+        repo, home.parent, home=home, environ=environ, overrides=overrides, session_id="s1"
     )
 
 
@@ -158,3 +158,23 @@ def test_classifier_uses_environment_predicate(repo: Path, home: Path) -> None:
     assert inside.outside_boundary == ()
     leak = classify("cat ~/.ssh/id_rsa", inside=env.is_inside)
     assert leak.outside_boundary == ("~/.ssh/id_rsa",)
+
+
+def test_stale_tmp_dirs_of_other_sessions_are_swept(tmp_path: Path) -> None:
+    import os
+    import time
+
+    from dfm.execution.environment import STALE_TMP_AFTER_S, sweep_stale_tmp
+
+    root = tmp_path / "tmp"
+    stale, fresh, mine = root / "old-session", root / "recent-session", root / "this-session"
+    for d in (stale, fresh, mine):
+        d.mkdir(parents=True)
+        (d / "artefact").write_text("x")
+    long_ago = time.time() - STALE_TMP_AFTER_S - 60
+    os.utime(stale, (long_ago, long_ago))
+    os.utime(mine, (long_ago, long_ago))  # my own dir is never touched, whatever its age
+    removed = sweep_stale_tmp(root, keep=mine)
+    assert removed == [stale]
+    assert not stale.exists() and fresh.exists() and mine.exists()
+    assert sweep_stale_tmp(tmp_path / "missing", keep=mine) == []

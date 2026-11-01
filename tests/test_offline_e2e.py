@@ -17,7 +17,7 @@ from dfm.config.writer import set_user_value
 from dfm.models.mlx import mlx_available
 from dfm.orchestration.implement import ImplementOptions, implement
 from dfm.orchestration.runtime import Runtime
-from tests.helpers import DONE, FIX, LIVE_MODEL_SKIP, ScriptedCoder
+from tests.helpers import DONE, FIX, LIVE_MODEL_SKIP, TEST_PATH, ScriptedCoder
 from tests.netmon import NetworkMonitor
 from tests.test_live_local_coder import WEIGHTS
 
@@ -35,6 +35,7 @@ async def test_offline_fix_with_zero_remote_connections(
     assert WEIGHTS is not None
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", TEST_PATH)  # the venv's pytest, whatever started this one
     env = {"HOME": str(home)}
     set_user_value("models.primary.model", str(WEIGHTS), env)
     set_user_value("models.fallback.model", str(WEIGHTS), env)
@@ -67,6 +68,7 @@ async def test_offline_pipeline_with_apple_fm_and_a_scripted_coder(
     Reflex, sandboxed tests, the session trace. Runs even when memory is too tight for MLX."""
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", TEST_PATH)  # the venv's pytest, whatever started this one
     with NetworkMonitor() as net:
         rt = Runtime.create(
             calc_repo,

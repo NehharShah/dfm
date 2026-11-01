@@ -13,21 +13,19 @@ from dfm.config.paths import discover_repo_root
 # The documented defaults, verbatim.
 SPEC_DEFAULTS = {
     "integrations": {
-        "repocanon": {"enabled": True, "required": True},
-        "repokg": {"enabled": True, "required": True, "incremental": True},
+        "repocanon": {"enabled": True},
+        "repokg": {"enabled": True},
         "reflex": {
             "enabled": True,
-            "required": False,
             "session_export": True,
             "use_skills": True,
             "use_handbook": True,
-            "use_routing_history": True,
         },
     },
     "models": {
         "apple": {"enabled": True, "remote": False},
-        "primary": {"provider": "mlx", "model": "", "lazy_load": True, "context": 32768},
-        "fallback": {"provider": "mlx", "model": "", "lazy_load": True, "context": 32768},
+        "primary": {"provider": "mlx", "model": "", "context": 32768},
+        "fallback": {"provider": "mlx", "model": "", "context": 32768},
         "thermal_limit": "moderate",
         "seed": None,
         "reasoning": "auto",
@@ -45,13 +43,10 @@ SPEC_DEFAULTS = {
         "other_network": "deny",
     },
     "security": {
-        "redact_secrets": True,
         "repo_filesystem_boundary": True,
-        "allow_home_directory_reads": False,
         "allow_production_cluster_writes": False,
     },
-    "git": {"preserve_dirty_worktree": True, "prefer_worktree_for_large_tasks": True},
-    "telemetry": {"enabled": False},
+    "git": {"prefer_worktree_for_large_tasks": True},
     "limits": {
         "read_text_bytes": 262144,
         "read_range_lines": 2000,
@@ -142,11 +137,33 @@ def test_cli_local_models_denies_remote_inference(env: dict[str, str]) -> None:
     assert loaded.config.network.github == "allow"  # engineering networking follows policy
 
 
-def test_repo_may_set_neutral_settings(env: dict[str, str], repo: Path) -> None:
-    write_repo(repo, "[integrations.reflex]\nenabled = false\n")
+@pytest.mark.parametrize(
+    ("toml", "key", "value"),
+    [
+        ("[integrations.reflex]\nenabled = false", "integrations.reflex.enabled", False),
+        (
+            "[integrations.reflex]\nsession_export = false",
+            "integrations.reflex.session_export",
+            False,
+        ),
+        ("[integrations.repocanon]\nenabled = false", "integrations.repocanon.enabled", False),
+        (
+            "[git]\nprefer_worktree_for_large_tasks = false",
+            "git.prefer_worktree_for_large_tasks",
+            False,
+        ),
+        ("[limits]\ntask_minutes = 5", "limits.task_minutes", 5),
+        ("[limits]\nread_text_bytes = 4096", "limits.read_text_bytes", 4096),
+    ],
+)
+def test_repo_may_turn_off_and_lower(
+    env: dict[str, str], repo: Path, toml: str, key: str, value: object
+) -> None:
+    write_repo(repo, toml + "\n")
     loaded = load_config(repo, env=env)
-    assert loaded.config.integrations.reflex.enabled is False
-    assert loaded.sources["integrations.reflex.enabled"] == "repo"
+    assert flatten(loaded.config.model_dump())[key] == value
+    assert loaded.sources[key] == "repo"
+    assert loaded.warnings == ()
 
 
 # repo cannot loosen
@@ -160,16 +177,17 @@ def test_repo_may_set_neutral_settings(env: dict[str, str], repo: Path) -> None:
         ('[network]\nremote_inference = "ask"', "network.remote_inference"),
         ('[network]\nother_network = "allow"', "network.other_network"),
         ('[network]\nblockchain_rpc_write = "ask"', "network.blockchain_rpc_write"),
-        ("[security]\nallow_home_directory_reads = true", "security.allow_home_directory_reads"),
         (
             "[security]\nallow_production_cluster_writes = true",
             "security.allow_production_cluster_writes",
         ),
         ('[network]\nkubernetes = "allow"', "network.kubernetes"),
-        ("[security]\nredact_secrets = false", "security.redact_secrets"),
         ("[security]\nrepo_filesystem_boundary = false", "security.repo_filesystem_boundary"),
-        ("[git]\npreserve_dirty_worktree = false", "git.preserve_dirty_worktree"),
-        ("[telemetry]\nenabled = true", "telemetry.enabled"),
+        # budgets may only go down (T12)
+        ("[limits]\ntask_minutes = 1000", "limits.task_minutes"),
+        ("[limits]\ntask_output_tokens = 1000000", "limits.task_output_tokens"),
+        ("[limits]\nread_text_bytes = 16777216", "limits.read_text_bytes"),
+        ("[limits]\nread_range_lines = 50000", "limits.read_range_lines"),
     ],
 )
 def test_repo_cannot_loosen(env: dict[str, str], repo: Path, toml: str, key: str) -> None:
@@ -178,6 +196,73 @@ def test_repo_cannot_loosen(env: dict[str, str], repo: Path, toml: str, key: str
     assert flatten(loaded.config.model_dump()) == flatten(SPEC_DEFAULTS)
     assert loaded.sources[key] == "default"
     assert any(key in w and "only tighten" in w for w in loaded.warnings), loaded.warnings
+
+
+@pytest.mark.parametrize(
+    ("user", "repo_toml", "key"),
+    [
+        # a user who turned something off: the repo cannot turn it back on
+        (
+            "[integrations.reflex]\nsession_export = false",
+            "[integrations.reflex]\nsession_export = true",
+            "integrations.reflex.session_export",
+        ),
+        (
+            "[git]\nprefer_worktree_for_large_tasks = false",
+            "[git]\nprefer_worktree_for_large_tasks = true",
+            "git.prefer_worktree_for_large_tasks",
+        ),
+        ("[limits]\ntask_minutes = 5", "[limits]\ntask_minutes = 15", "limits.task_minutes"),
+    ],
+)
+def test_repo_cannot_undo_what_the_user_tightened(
+    env: dict[str, str], repo: Path, user: str, repo_toml: str, key: str
+) -> None:
+    write_user(env, user + "\n")
+    write_repo(repo, repo_toml + "\n")
+    loaded = load_config(repo, env=env)
+    assert loaded.sources[key] == "user"
+    assert any(key in w and "only tighten" in w for w in loaded.warnings), loaded.warnings
+
+
+@pytest.mark.parametrize(
+    "toml",
+    [
+        "[models]\nreasoning = 'high'",
+        "[models.primary]\ncontext = 4096",
+        "[network]\ngopher = 'deny'",  # unknown keys are reported as such
+        "[limits]\ntask_minutes = 100000",  # above the model's ceiling: invalid, not a tighten
+    ],
+)
+def test_repo_cannot_set_anything_else(env: dict[str, str], repo: Path, toml: str) -> None:
+    """Values out of range are rejected before the tighten check (`limits.task_minutes =
+    100000` is invalid, not merely loosening): either way the default stands."""
+    write_repo(repo, toml + "\n")
+    loaded = load_config(repo, env=env)
+    assert loaded.config.model_dump() == SPEC_DEFAULTS
+    assert all(v == "default" for v in loaded.sources.values())
+    assert loaded.warnings, toml
+
+
+def test_repo_allowlist_is_the_whole_story(env: dict[str, str], repo: Path) -> None:
+    """Every key the model knows is either allowlisted or refused from the repo layer; no key
+    falls through untouched (the denylist bug this replaces)."""
+    from dfm.config.loader import _repo_may_set  # pyright: ignore[reportPrivateUsage]
+
+    allowed = {k for k in flatten(SPEC_DEFAULTS) if _repo_may_set(k)}
+    assert allowed == {
+        *(f"network.{k}" for k in SPEC_DEFAULTS["network"]),
+        *(f"limits.{k}" for k in SPEC_DEFAULTS["limits"]),
+        "security.repo_filesystem_boundary",
+        "security.allow_production_cluster_writes",
+        "git.prefer_worktree_for_large_tasks",
+        "integrations.repocanon.enabled",
+        "integrations.repokg.enabled",
+        "integrations.reflex.enabled",
+        "integrations.reflex.session_export",
+        "integrations.reflex.use_skills",
+        "integrations.reflex.use_handbook",
+    }
 
 
 def test_repo_cannot_choose_models(env: dict[str, str], repo: Path) -> None:
@@ -218,7 +303,7 @@ def test_hosted_provider_rejected(env: dict[str, str]) -> None:
 
 
 def test_strict_types(env: dict[str, str]) -> None:
-    write_user(env, '[telemetry]\nenabled = "no"\n')
+    write_user(env, '[integrations.reflex]\nenabled = "no"\n')
     with pytest.raises(ConfigError):
         load_config(None, env=env)
 

@@ -10,7 +10,6 @@ and `sncast` (transactions, accounts) are never started or sent from here.
 from __future__ import annotations
 
 import re
-import tomllib
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,8 +19,12 @@ from dfm.tools.languages.base import (
     ToolchainCommands,
     ToolCommand,
     canon_command,
+    fallback_diagnostic,
     language_named,
+    nearest_dir_with,
+    read_toml,
     runs,
+    toml_workspace_members,
     which_all,
 )
 from dfm.tools.results import (
@@ -36,36 +39,16 @@ _CAIRO_TOOLS = {"scarb", "snforge", "make"}
 
 
 def _manifest(directory: Path) -> dict[str, Any]:
-    try:
-        with (directory / "Scarb.toml").open("rb") as fh:
-            return tomllib.load(fh)
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+    return read_toml(directory / "Scarb.toml")
 
 
 def workspace_members(repo: Path) -> dict[str, str]:
     """Package name → directory for the root package and every `[workspace] members` glob."""
-    root = _manifest(repo)
-    members: dict[str, str] = {}
-    package = cast(dict[str, Any], root.get("package", {}))
-    if "name" in package:
-        members[str(package["name"])] = "."
-    workspace = cast(dict[str, Any], root.get("workspace", {}))
-    for pattern in cast(list[Any], workspace.get("members", [])):
-        for directory in sorted(repo.glob(str(pattern))):
-            name = cast(dict[str, Any], _manifest(directory).get("package", {})).get("name")
-            if name:
-                members[str(name)] = directory.relative_to(repo).as_posix()
-    return members
+    return toml_workspace_members(repo, "Scarb.toml")
 
 
 def package_dir(repo: Path, rel_path: str | None) -> str:
-    if not rel_path:
-        return "."
-    for parent in [Path(rel_path), *Path(rel_path).parents]:
-        if parent.as_posix() not in {"", "."} and (repo / parent / "Scarb.toml").is_file():
-            return parent.as_posix()
-    return "."
+    return nearest_dir_with(repo, rel_path, "Scarb.toml")
 
 
 def uses_snforge(manifest: dict[str, Any]) -> bool:
@@ -131,8 +114,7 @@ class CairoAdapter:
             if not re.match(r"could not compile", d.message)
         ]
         if not diagnostics and result.exit_code not in (0, None):
-            tail = [ln for ln in text.splitlines() if ln.strip()][-5:]
-            diagnostics.append(Diagnostic("error", "\n".join(tail) or f"{tool} failed", tool=tool))
+            diagnostics.append(fallback_diagnostic(result, tool, lines=5))
         return diagnostics
 
     def lsp_server(self) -> LspServerSpec | None:

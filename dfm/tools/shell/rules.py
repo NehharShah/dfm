@@ -112,6 +112,7 @@ def unwrap(name: str, argv: list[str]) -> tuple[str, list[str]] | None:
         return ("argv", rest[i:])
     if name == "env":
         i = 0
+        assignments: list[str] = []
         while i < len(rest) and (rest[i].startswith("-") or "=" in rest[i]):
             split = rest[i] in {"-S", "--split-string"} or rest[i].startswith(
                 ("-S", "--split-string=")
@@ -125,8 +126,10 @@ def unwrap(name: str, argv: list[str]) -> tuple[str, list[str]] | None:
                         rest[i + 1 :],
                     )
                 return ("string", [" ".join([head, *(shlex.quote(a) for a in after)])])
+            if not rest[i].startswith("-"):
+                assignments.append(rest[i])  # classified like a `VAR=value cmd` prefix
             i += 2 if rest[i] in {"-u", "-C"} else 1
-        return ("argv", rest[i:]) if i < len(rest) else None
+        return ("argv", [*assignments, *rest[i:]]) if i < len(rest) else None
     if name == "nice":
         i = 0
         while i < len(rest) and rest[i].startswith("-"):
@@ -249,20 +252,17 @@ SAFE_READ = {
     "zcat",
     "bzcat",
     "xzcat",
-    "cd",
-    "pushd",
     "popd",
-    "set",
-    "export",
-    "unset",
-    "alias",
     "history",
     "jobs",
     "wait",
     "dirs",
-    "hash",
     "ulimit",
 }
+# Builtins that change how the shell resolves the commands that follow them on later lines
+# (`alias ls=...`, `hash -p ./x ls`, `export PATH=...`, `set -o`). The classifier reads the
+# command name; these make the shell run something else under it.
+SHELL_RESOLUTION = {"alias", "unalias", "hash", "export", "set", "unset", "shopt", "enable", "trap"}
 SAFE_READ_DEV = {
     "rust-analyzer",
     "gopls",
@@ -278,6 +278,18 @@ def rule_safe_read(argv: list[str]) -> Part:
     return P(argv, A.SAFE_READ, f"{argv[0]} only reads")
 
 
+def rule_shell_resolution(argv: list[str]) -> Part:
+    return P(argv, A.UNKNOWN, f"{argv[0]} changes how the shell resolves later commands")
+
+
+def rule_cd(argv: list[str]) -> Part:
+    target = positional(argv)
+    if not target or target[0] == "-":
+        # `cd` alone is $HOME and `cd -` is wherever the shell was: both leave the repository
+        return P(argv, A.UNKNOWN, f"{argv[0]} without a path leaves the repository")
+    return P(argv, A.SAFE_READ, f"{argv[0]} changes directory")
+
+
 def rule_find(argv: list[str]) -> Part:
     if has(argv, "-delete"):
         return P(argv, A.DESTRUCTIVE, "find -delete removes files recursively")
@@ -289,30 +301,32 @@ def rule_find(argv: list[str]) -> Part:
     return P(argv, A.SAFE_READ, "find only reads")
 
 
-# GNU sed runs commands with `e` (a command, or the s///e flag) and writes with w/W
-_SED_EXEC_OR_WRITE = re.compile(
-    r"(^|[;\n{}])\s*(\$|\d+(,\s*\d+)?|/[^/\n]*/)?\s*!?\s*[ewW](\s|$|;|})"
-)
+# GNU sed runs commands with `e` (a command, or the s///e flag) and writes with w/W. At the
+# command position anything may follow the letter (`eid` runs `id`, `wout` writes `out`).
+_SED_EXEC_OR_WRITE = re.compile(r"(^|[;\n{}])\s*(\$|\d+(,\s*\d+)?|/[^/\n]*/)?\s*!?\s*[ewW]")
 _SED_SUBST_FLAGS = re.compile(r"s(.)(?:\\.|(?!\1).)*\1(?:\\.|(?!\1).)*\1([a-zA-Z0-9]*)")
+_SED_OPTIONS_WITH_VALUE = frozenset({"-e", "--expression", "-f", "--file", "-l", "--line-length"})
 
 
 def rule_sed(argv: list[str]) -> Part:
-    if has(argv, "-i", "--in-place") or any(a.startswith("-i") for a in argv[1:]):
-        return P(argv, A.WORKTREE_WRITE, "sed -i edits files in place")
     if has(argv, "-f", "--file"):
         return P(argv, A.UNKNOWN, "sed runs a script file")
-    scripts = option_values(argv, "-e", "--expression") or [
-        a for a in argv[1:2] if not a.startswith("-")
-    ]
+    # the script is the first operand, wherever the options put it (`sed -n -E 'script' file`)
+    scripts = (
+        option_values(argv, "-e", "--expression") or positional(argv, _SED_OPTIONS_WITH_VALUE)[:1]
+    )
     for script in scripts:
         flags = "".join(m.group(2) for m in _SED_SUBST_FLAGS.finditer(script))
         if _SED_EXEC_OR_WRITE.search(script) or any(f in flags for f in "ewW"):
             return P(argv, A.UNKNOWN, "sed script may write files or execute commands")
+    if has(argv, "-i", "--in-place") or any(a.startswith("-i") for a in argv[1:]):
+        return P(argv, A.WORKTREE_WRITE, "sed -i edits files in place")
     return P(argv, A.SAFE_READ, "sed without -i only reads")
 
 
-# print/printf piped to a command or redirected to a file, `cmd | getline`, system()
-_AWK_EXEC_OR_WRITE = re.compile(r"\bprintf?\b[^;}\n]*?(>|\|)|\|\s*getline|\bsystem\s*\(")
+# print/printf piped to a command or redirected to a file, `cmd | getline`, system(); a script
+# may span lines, so the match runs across them
+_AWK_EXEC_OR_WRITE = re.compile(r"\bprintf?\b[^;}]*?(>|\|)|\|\s*getline|\bsystem\s*\(", re.S)
 
 
 def rule_awk(argv: list[str]) -> Part:
@@ -528,9 +542,39 @@ def _git_config_runs_code(argv: list[str]) -> bool:
     return has(argv, "--config-env", "--exec-path")
 
 
+# Long options git accepts abbreviated to any unambiguous prefix (`--har`, `--del`, `--forc`).
+# Expanding an abbreviation of one of these before matching keeps the destructive class.
+_GIT_DANGEROUS_LONG = (
+    "--hard",
+    "--force",
+    "--force-with-lease",
+    "--force-if-includes",
+    "--delete",
+    "--amend",
+    "--mirror",
+    "--prune",
+    "--discard-changes",
+    "--orphan",
+    "--in-place",
+)
+
+
+def _expand_git_abbreviations(a: list[str]) -> list[str]:
+    out: list[str] = []
+    for arg in a:
+        name, eq, value = arg.partition("=")
+        if arg.startswith("--") and len(name) > 3 and name not in _GIT_DANGEROUS_LONG:
+            full = next((o for o in _GIT_DANGEROUS_LONG if o.startswith(name)), None)
+            if full is not None:
+                out.append(full + eq + value)
+                continue
+        out.append(arg)
+    return out
+
+
 def rule_git(argv: list[str]) -> Part:
     sub, rest = _git_sub(argv)
-    a = rest  # rest[0] is the subcommand, so has()/positional() work on it
+    a = _expand_git_abbreviations(rest)  # rest[0] is the subcommand, so has()/positional() work
     pos = positional(a)
     global_opts = argv[: len(argv) - len(rest)] if rest else argv
     if _git_config_runs_code(global_opts) or (sub == "clone" and _git_config_runs_code(a)):
@@ -636,8 +680,9 @@ def rule_git(argv: list[str]) -> Part:
             return P(argv, A.DESTRUCTIVE, "git gc --prune drops unreachable objects")
         return P(argv, A.LOCAL_STATE_CHANGE, "git gc")
     if sub in {"add", "mv", "rm", "apply"}:
-        if sub == "rm" and has(a, "-r") and has(a, "-f"):
-            return P(argv, A.LOCAL_DESTRUCTIVE, "git rm -rf")
+        if sub == "rm" and has(a, "-r", "-f", "--force"):
+            # recoverable from HEAD, but `git rm -r .` empties the tree like `rm -r` would
+            return P(argv, A.LOCAL_DESTRUCTIVE, "git rm -r/-f removes tracked files")
         return P(argv, A.WORKTREE_WRITE, f"git {sub} changes tracked files")
     if sub in {"merge", "cherry-pick", "revert", "am", "init", "notes"}:
         if sub == "merge" and has(a, "--abort"):
@@ -2031,8 +2076,12 @@ _SQL_WRITE = (
 )
 
 
+_SQL_COMMENT = re.compile(r"--[^\n]*|/\*.*?\*/", re.S)
+
+
 def _sql_class(query: str, local: bool) -> tuple[ActionClass, str]:
-    q = " ".join(query.lower().split()) + " "
+    # comments are not part of the statement: `delete from t -- where id = 1` has no WHERE
+    q = " ".join(_SQL_COMMENT.sub(" ", query).lower().split()) + " "
     if any(k in q for k in _SQL_DESTRUCTIVE):
         if (
             "delete from" in q
@@ -2284,6 +2333,9 @@ def rule_repo_tools(argv: list[str]) -> Part:
 RULES: dict[str, Rule] = {
     **dict.fromkeys(SAFE_READ, rule_safe_read),
     **dict.fromkeys(SAFE_READ_DEV, rule_safe_read),
+    **dict.fromkeys(SHELL_RESOLUTION, rule_shell_resolution),
+    "cd": rule_cd,
+    "pushd": rule_cd,
     # read-only tools with options that write files or run programs
     "rg": rule_rg,
     "fd": rule_fd,

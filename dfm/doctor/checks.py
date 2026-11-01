@@ -16,6 +16,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from dfm.config import ConfigError, LoadedConfig, load_config
+from dfm.models.mlx.model import MLX_INSTALL_HINT
 from dfm.security.sandbox import already_sandboxed
 
 
@@ -157,16 +158,20 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
         add(CheckResult("machine", "memory", status, f"{gb:.0f} GB unified memory", remedy))
     else:
         add(CheckResult("machine", "memory", Status.SKIP, "unknown"))
-    free = probe.disk_free(probe.home) / GB
-    add(
-        CheckResult(
-            "machine",
-            "disk",
-            Status.OK if free >= 40 else Status.WARN,
-            f"{free:.0f} GB free",
-            "" if free >= 40 else "local models need 15-40 GB",
+    try:
+        free = probe.disk_free(probe.home) / GB
+    except OSError as exc:  # $HOME missing or unreadable: a finding, not a traceback
+        add(CheckResult("machine", "disk", Status.SKIP, f"cannot measure: {exc}"))
+    else:
+        add(
+            CheckResult(
+                "machine",
+                "disk",
+                Status.OK if free >= 40 else Status.WARN,
+                f"{free:.0f} GB free",
+                "" if free >= 40 else "local models need 15-40 GB",
+            )
         )
-    )
 
     # ---- Apple FM
     if probe.which("fm") is None:
@@ -221,7 +226,7 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
                     label,
                     Status.WARN,
                     "not installed",
-                    "run `dfm setup` (uv sync --extra mlx)",
+                    MLX_INSTALL_HINT,
                 )
             )
     if loaded is not None:
@@ -263,7 +268,7 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
                     label,
                     Status.WARN,
                     "not installed (degraded discovery)",
-                    "uv sync (sibling checkout ../" + module + ")",
+                    "reinstall dfm-agent: " + module + " is a required dependency",
                 )
             )
     if probe.which("reflex"):

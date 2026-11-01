@@ -16,3 +16,15 @@ macOS `sandbox-exec` profile (`dfm/security/sandbox.py`):
 Consequences: `sandbox-exec` is deprecated but present on macOS 27; if Apple removes it the wrap
 becomes a no-op and doctor warns (env scrubbing still applies). System temp dirs remain writable.
 Linux would need a different backend (bubblewrap/landlock); not in scope.
+
+Addendum (2026-10-31, whole-codebase review): the write allowlist was too wide in three places
+and the read denylist too narrow in one. Repository code may no longer write `<repo>/.dfm`
+(checkpoint originals that `/undo` restores, repository policy), `~/.cache/dfm` (the persisted
+KV cache the worker restores as the model's prefix; the worker's own profile re-allows its `kv`
+directory) or DFM's own interpreter and venv (`sys.prefix`, `sys.base_prefix`, which sit under
+the uv toolchain cache). It may no longer read shell startup files and histories, other coding
+agents' state (`~/.claude`, `~/.codex`, `~/.cursor`), the Hugging Face token, or DFM's policy,
+traces, logs, metrics, registry and caches (`ExecutionEnvironment.private_state`); model weights
+under `~/.local/share/dfm/models` and the session temp dir stay readable. Network for a compound
+command is granted only when every part was approved: read-only tools that can start programs
+(`sed`, `awk`, `less`, `find`, `git`, editors) no longer count as "no code".

@@ -9,12 +9,14 @@ import os
 import re
 import shutil
 import sys
+import time
 from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from dfm.config import ConfigOverrides, DFMConfig, StateDirs, state_dirs
+from dfm.execution.git_hardening import harden_git_env
 from dfm.policy.network import NetworkMode, network_mode
 
 
@@ -24,6 +26,7 @@ class BoundaryViolation(PermissionError):
 
 # Relative to the home directory. Denied even if the user approves a parent path.
 DEFAULT_DENIED_HOME_PATHS = (
+    # keys and cloud credentials
     ".ssh",
     ".aws",
     ".gnupg",
@@ -33,18 +36,44 @@ DEFAULT_DENIED_HOME_PATHS = (
     ".config/gcloud",
     ".config/gh",
     ".config/solana",
+    ".config/op",
     ".netrc",
     ".git-credentials",
     ".npmrc",
     ".pypirc",
     ".password-store",
+    ".vault-token",
     ".cargo/credentials",
     ".cargo/credentials.toml",
     ".terraform.d/credentials.tfrc.json",
+    ".cache/huggingface/token",
     ".foundry/keystores",
     ".starkli-wallets",
     ".ethereum/keystore",
     ".near-credentials",
+    # shell startup files and histories: tokens get exported there
+    ".zshrc",
+    ".zshenv",
+    ".zprofile",
+    ".bashrc",
+    ".bash_profile",
+    ".profile",
+    ".zsh_history",
+    ".bash_history",
+    ".local/share/fish/fish_history",
+    ".python_history",
+    ".node_repl_history",
+    ".psql_history",
+    ".mysql_history",
+    # other coding agents' state and credentials
+    ".claude",
+    ".claude.json",
+    ".codex",
+    ".cursor",
+    ".config/Cursor",
+    # (DFM's own policy and traces are denied to repository code by the sandbox profile, via
+    # `ExecutionEnvironment.private_state`; DFM itself reads and writes them)
+    # keychains, cookies, browser profiles, password managers
     "Library/Keychains",
     "Library/Cookies",
     "Library/Safari",
@@ -157,6 +186,34 @@ _ALWAYS_ENV = {
 }
 
 
+STALE_TMP_AFTER_S = 24 * 3600
+
+
+def sweep_stale_tmp(tmp_root: Path, *, keep: Path, now: float | None = None) -> list[Path]:
+    """Remove other sessions' temp dirs that were last touched over a day ago.
+
+    `close()` removes a session's own tmp; a session killed mid-run (power, kill -9) leaves it,
+    and one left dir can be hundreds of megabytes of test artefacts. A day is well past any
+    task's time limit, so nothing still running is touched. Returns what was removed."""
+    removed: list[Path] = []
+    now = time.time() if now is None else now
+    try:
+        entries = list(tmp_root.iterdir())
+    except OSError:
+        return removed
+    for entry in entries:
+        if entry == keep or not entry.is_dir():
+            continue
+        try:
+            age = now - entry.stat().st_mtime
+        except OSError:
+            continue
+        if age > STALE_TMP_AFTER_S:
+            shutil.rmtree(entry, ignore_errors=True)
+            removed.append(entry)
+    return removed
+
+
 def scrub_env(environ: Mapping[str, str]) -> dict[str, str]:
     """Allowlisted variables minus anything whose name looks secret."""
     return {
@@ -177,6 +234,10 @@ class ExecutionEnvironment:
     # DFM's own config and data dirs: inside the boundary for DFM, never writable by the code it
     # runs (it could rewrite DFM's policy or forge its process registry)
     state_roots: tuple[Path, ...] = ()
+    # The parts of that state repository code must not even read: the policy, session traces,
+    # logs, metrics, the process registry and integration caches. Model weights (`models/`)
+    # and this session's temp dir stay readable: the worker and tests live there.
+    private_state: tuple[Path, ...] = ()
 
     @classmethod
     def create(
@@ -196,6 +257,7 @@ class ExecutionEnvironment:
         repo = Path(os.path.realpath(repo_root))
         tmp = dirs.data / "tmp" / session_id
         tmp.mkdir(mode=0o700, parents=True, exist_ok=True)
+        sweep_stale_tmp(dirs.data / "tmp", keep=tmp)
         roots = (
             [repo, dirs.data, dirs.config]
             if config.security.repo_filesystem_boundary
@@ -217,6 +279,17 @@ class ExecutionEnvironment:
             state_roots=(
                 Path(os.path.realpath(dirs.data)),
                 Path(os.path.realpath(dirs.config)),
+            ),
+            private_state=tuple(
+                Path(os.path.realpath(p))
+                for p in (
+                    dirs.config,
+                    dirs.sessions,
+                    dirs.logs,
+                    dirs.metrics,
+                    dirs.processes,
+                    dirs.cache,
+                )
             ),
         )
 
@@ -253,6 +326,9 @@ class ExecutionEnvironment:
         """Environment for a subprocess. Secrets appear only when a tool asks for them by name."""
         env = scrub_env(self.source_env)
         env.update(_ALWAYS_ENV)
+        # git started from here (DFM's own, or a model-proposed `git status`) must not run a
+        # `core.fsmonitor` planted in repository config; the allowlist dropped the parent's copy
+        harden_git_env(env)
         env["TMPDIR"] = str(self.tmp)
         env["PYTHONPYCACHEPREFIX"] = str(self.tmp / "pycache")  # bytecode never lands in the repo
         env["PWD"] = str(self.cwd)

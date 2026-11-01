@@ -66,6 +66,18 @@ def test_blocking_failures(tmp_path: Path) -> None:
     assert exit_code(results) == 1
 
 
+def test_missing_home_is_a_skip_not_a_traceback(tmp_path: Path) -> None:
+    import dataclasses
+
+    def no_home(_: Path) -> int:
+        raise FileNotFoundError(2, "No such file or directory", "/tmp/nonexistent")
+
+    probe = dataclasses.replace(fake_probe({"git"}, set()), disk_free=no_home)
+    results = run_checks(probe, load_config(None, env={"HOME": str(tmp_path)}))
+    disk = by_name(results, "disk")
+    assert disk.status is Status.SKIP and "cannot measure" in disk.detail
+
+
 def test_remote_inference_warns(tmp_path: Path) -> None:
     cfg = tmp_path / ".config" / "dfm"
     cfg.mkdir(parents=True)

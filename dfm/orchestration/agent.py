@@ -857,6 +857,15 @@ class AgentLoop:
         return classify(command, inside=self.rt.env.is_inside).action is ActionClass.SAFE_READ
 
     async def run(self, request: str) -> TaskOutcome:
+        """Run the task; services DFM started for it are released however it ends (done, a
+        refusal, an exception, or a cancellation from Ctrl-C)."""
+        try:
+            return await self._run(request)
+        finally:
+            if self.services is not None:
+                await self.services.release_all()
+
+    async def _run(self, request: str) -> TaskOutcome:
         sid = self.rt.session.id
         self.started = time.monotonic()
         self.rt.event("user_request", text=request)
@@ -941,8 +950,6 @@ class AgentLoop:
 
         metric("agent.steps", steps)
         not_verified, risks, architecture = await self._verify()
-        if self.services is not None:
-            await self.services.release_all()
         changed = sorted(self.fs.modified)
         tests_ok = any(e.claim == "tests pass" for e in self.ledger.verified())
         target_ok = self.target is None or any(
@@ -990,7 +997,3 @@ def outcome_payload(outcome: TaskOutcome) -> dict[str, Any]:
         "steps": outcome.steps,
         "session": outcome.session_id,
     }
-
-
-def repo_relative(path: Path, repo: Path) -> str:
-    return path.relative_to(repo).as_posix() if path.is_relative_to(repo) else str(path)

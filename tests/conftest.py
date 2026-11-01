@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from tests import repo_fixtures as fx
-from tests.helpers import BUGGY, configure_fake
+from tests.helpers import BUGGY, TEST_PATH, configure_fake
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -53,12 +53,18 @@ def git() -> Callable[..., str]:
 
 @pytest.fixture
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An isolated HOME, and a PATH that holds this venv and the system directories only.
+    `Runtime.create` inherits os.environ, so without this the agent-loop tests found `pytest`
+    only when pytest itself was started through `uv run`, and could see the developer's real
+    `gh` or `kubectl`."""
     h = tmp_path / "home"
     (h / ".config" / "dfm").mkdir(parents=True)
     (h / ".config" / "dfm" / "config.toml").write_text("[models.apple]\nenabled = false\n")
     monkeypatch.setenv("HOME", str(h))
+    monkeypatch.setenv("PATH", TEST_PATH)
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("XDG_CACHE_HOME", raising=False)
     return h
 
 

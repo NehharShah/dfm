@@ -1,7 +1,7 @@
 """Everything one DFM invocation needs, wired once.
 
     config → execution environment → process manager → policy → session trace
-           → models (Apple FM now, MLX coders from 018-020) → router → providers
+           → models (Apple FM, MLX coders) → router → providers
 
 Commands build a Runtime, do their work through it, and close it with an
 honest status. Every model, policy and integration event lands in the session trace.
@@ -82,9 +82,7 @@ def _local_coders(
                 env,
                 resources=resources,
             )
-    if primary is None and small is not None:
-        primary = None  # coder("primary") falls back to small automatically
-    return primary, small
+    return primary, small  # coder("primary") falls back to small when primary is None
 
 
 @dataclass
@@ -202,7 +200,9 @@ class Runtime:
             return outcome.result
 
         reflex = ReflexProvider(
-            run_reflex, enabled=integrations.reflex.enabled and integrations.reflex.use_handbook
+            run_reflex,
+            enabled=integrations.reflex.enabled and integrations.reflex.use_handbook,
+            use_skills=integrations.reflex.use_skills,
         )
         return cls(
             repo,

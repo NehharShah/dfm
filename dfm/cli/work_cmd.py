@@ -2,40 +2,17 @@
 
 import asyncio
 import json
-from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from dfm.config import ConfigError, ConfigOverrides, discover_repo_root
+from dfm.cli.common import JsonOption, RepoOption, closing, console, make_runtime
 from dfm.orchestration.agent import outcome_payload
 from dfm.orchestration.implement import ImplementOptions
 from dfm.orchestration.implement import implement as run_implement
 from dfm.orchestration.plan import plan as run_plan
-from dfm.orchestration.runtime import Runtime
 from dfm.routing import is_resume_request
 from dfm.tools.errors import ToolError
-
-console = Console()
-
-RepoOption = Annotated[Path | None, typer.Option("--repo", help="Repository root.")]
-JsonOption = Annotated[bool, typer.Option("--json", help="Machine-readable output.")]
-
-
-def _runtime(ctx: typer.Context, repo: Path | None, request: str, mode: str) -> Runtime:
-    overrides = ctx.find_root().obj
-    root = discover_repo_root(repo or Path.cwd())
-    try:
-        return Runtime.create(
-            root,
-            request=request,
-            mode=mode,
-            overrides=overrides if isinstance(overrides, ConfigOverrides) else None,
-        )
-    except ConfigError as exc:
-        console.print(f"[red]error:[/red] {exc}")
-        raise typer.Exit(2) from exc
 
 
 def plan(
@@ -45,15 +22,12 @@ def plan(
     as_json: JsonOption = False,
 ) -> None:
     """Plan a change without editing anything (tests run in a read-only sandbox)."""
-    rt = _runtime(ctx, repo, task, "plan")
+    rt = make_runtime(ctx, repo, task, "plan")
 
     async def go() -> None:
-        try:
-            result = await run_plan(rt, task)
-        except BaseException:
-            await rt.close("failed")
-            raise
-        await rt.close("completed", "plan written")
+        result = await closing(
+            rt, run_plan(rt, task), status=lambda _: ("completed", "plan written")
+        )
         if as_json:
             typer.echo(json.dumps({**result.to_dict(), "session": rt.session.id}, indent=2))
         else:
@@ -88,7 +62,7 @@ def implement(
     if is_resume_request(task) and from_plan is None and not worktree:
         resume(ctx, None, repo, max_steps)  # "resume what we were doing yesterday"
         return
-    rt = _runtime(ctx, repo, task, "implement")
+    rt = make_runtime(ctx, repo, task, "implement")
 
     async def go() -> int:
         try:
@@ -137,7 +111,7 @@ def resume(
     """Continue an interrupted session after checking what changed since."""
     from dfm.orchestration.resume import resume as run_resume
 
-    rt = _runtime(ctx, repo, "resume", "resume")
+    rt = make_runtime(ctx, repo, "resume", "resume")
 
     async def go() -> int:
         try:

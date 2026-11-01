@@ -35,11 +35,21 @@ def test_final_text_variants() -> None:
     assert final_text(constrained) == '{"a": 1}'
 
 
+# Speaks the worker's wire protocol (ids, ok/kind/error, chunks, cancel on a reader thread).
 FAKE_WORKER = r"""
-import json, sys, time
+import json, queue, sys, threading, time
 loaded = None
-for line in sys.stdin:
-    req = json.loads(line)
+cancelled = set()
+requests = queue.Queue()
+def reader():
+    for line in sys.stdin:
+        req = json.loads(line)
+        if req.get("op") == "cancel":
+            cancelled.add(req["target"]); continue
+        requests.put(req)
+    requests.put(None)
+threading.Thread(target=reader, daemon=True).start()
+while (req := requests.get()) is not None:
     op, rid = req["op"], req["id"]
     mode = open(__file__ + ".mode").read().strip()
     if op == "ping":
@@ -52,17 +62,30 @@ for line in sys.stdin:
         open(__file__ + ".log", "a").write(json.dumps(req["messages"]) + "\n")
         if mode == "crash":
             sys.exit(9)
+        if mode == "noise":
+            print("some library printed this", flush=True)
+        if mode == "torn":
+            sys.stdout.write('{"id": %d, "ok": true, "text": "half' % rid); sys.stdout.flush(); sys.exit(9)
         if mode == "slow":
             time.sleep(10)
+        if mode == "stuck":  # ignores cancel: only a kill ends it
+            time.sleep(30)
         if mode == "context":
             print(json.dumps({"id": rid, "ok": False, "kind": "context", "error": "too long"}), flush=True); continue
         if req.get("stream"):
             for piece in ["def ", "add"]:
                 print(json.dumps({"id": rid, "chunk": piece}), flush=True)
+        stop = "length"
+        if mode == "long":  # 'generates' a token every 50 ms for 3 s, honouring cancel
+            for _ in range(60):
+                if rid in cancelled:
+                    stop = "cancelled"; break
+                time.sleep(0.05)
+            open(__file__ + ".log", "a").write("stop=" + stop + "\n")
         text = '<|channel|>analysis<|message|>x<|end|><|channel|>final<|message|>{"subject": "Fix add"}<|return|>' if mode == "json" else "<think>t</think>hello"
         if mode == "echo":
             text = req["messages"][-1]["content"]
-        print(json.dumps({"id": rid, "ok": True, "text": text, "prompt_tokens": 12, "generation_tokens": 3, "generation_tps": 50.0, "seconds": 0.05, "peak_gb": 1.0}), flush=True)
+        print(json.dumps({"id": rid, "ok": True, "text": text, "prompt_tokens": 12, "generation_tokens": 3, "generation_tps": 50.0, "seconds": 0.05, "peak_gb": 1.0, "stop_reason": stop}), flush=True)
     elif op == "unload":
         print(json.dumps({"id": rid, "ok": True}), flush=True)
         if req.get("exit"):
@@ -157,6 +180,79 @@ async def test_idle_unload(tmp_path: Path, env: ExecutionEnvironment) -> None:
     assert model.loaded
     await asyncio.sleep(0.6)
     assert not model.loaded
+
+
+async def test_cancel_stops_the_worker_and_keeps_it_loaded(
+    tmp_path: Path, env: ExecutionEnvironment
+) -> None:
+    """Ctrl-C (task cancellation) reaches the worker, which stops after its current token and
+    stays loaded; the next request is served right away rather than queueing behind an orphan."""
+    import asyncio
+    import time
+
+    model, log = fake_model(tmp_path, env, "long")
+    task = asyncio.create_task(model.generate(GenerateRequest.prompt("x")))
+    await asyncio.sleep(0.4)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert model.loaded  # not killed: it answered the cancel
+    assert "stop=cancelled" in log.read_text()
+    Path(str(tmp_path / "fake_worker.py") + ".mode").write_text("ok")
+    started = time.monotonic()
+    result = await model.generate(GenerateRequest.prompt("y"))
+    assert result.text == "hello" and time.monotonic() - started < 1.0
+    assert log.read_text().count("load") == 1
+    await model.unload()
+
+
+async def test_timeout_interrupts_then_kills_only_if_the_worker_is_stuck(
+    tmp_path: Path, env: ExecutionEnvironment
+) -> None:
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+    polite, _ = fake_model(tmp_path / "a", env, "long")
+    with pytest.raises(ModelTimeout):
+        await polite.generate(GenerateRequest.prompt("x", timeout_s=0.3))
+    assert polite.loaded  # it honoured the cancel within the grace period
+    await polite.unload()
+    stuck, _ = fake_model(tmp_path / "b", env, "stuck")
+    with pytest.raises(ModelTimeout):
+        await stuck.generate(GenerateRequest.prompt("x", timeout_s=0.3))
+    assert not stuck.loaded  # no answer to the cancel: killed
+
+
+async def test_stream_consumer_stopping_early_cancels_generation(
+    tmp_path: Path, env: ExecutionEnvironment
+) -> None:
+    from collections.abc import AsyncGenerator
+    from typing import cast
+
+    model, log = fake_model(tmp_path, env, "long")
+    gen = cast(AsyncGenerator[str, None], model.stream(GenerateRequest.prompt("x")))
+    await anext(gen)  # the first chunk arrives before the slow 'tokens'
+    await gen.aclose()
+    import asyncio
+
+    await asyncio.sleep(0.2)  # the fake logs its stop reason after answering the cancel
+    assert model.loaded
+    assert "stop=cancelled" in log.read_text()
+    await model.unload()
+
+
+async def test_non_protocol_lines_and_torn_replies_are_typed_errors(
+    tmp_path: Path, env: ExecutionEnvironment
+) -> None:
+    """A library print on stdout is skipped; a reply cut short by a crash is 'worker exited',
+    never a raw JSONDecodeError that bypasses the ModelError handlers."""
+    for name in ("a", "b"):
+        (tmp_path / name).mkdir()
+    noisy, _ = fake_model(tmp_path / "a", env, "noise")
+    assert (await noisy.generate(GenerateRequest.prompt("x"))).text == "hello"
+    await noisy.unload()
+    torn, _ = fake_model(tmp_path / "b", env, "torn")
+    with pytest.raises(ModelUnavailable, match="worker exited"):
+        await torn.generate(GenerateRequest.prompt("x"))
 
 
 @pytest.mark.mlx

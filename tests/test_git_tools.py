@@ -4,22 +4,20 @@ from pathlib import Path
 
 import pytest
 
-from dfm.config import DFMConfig, state_dirs
+from dfm.config import DFMConfig
 from dfm.execution import ExecutionEnvironment
 from dfm.policy import Policy
 from dfm.processes import ProcessManager, ProcessRegistry
 from dfm.tools.filesystem import FsTools, ToolError
 from dfm.tools.git import GitGuard, GitTools, WorktreeManager, parse_status_v2
 from tests import repo_fixtures as fx
+from tests.helpers import make_env
 
 Git = Callable[..., str]
 
 
 def runtime(repo: Path, tmp_path: Path) -> tuple[ExecutionEnvironment, ProcessManager, Policy]:
-    environ = {"HOME": str(tmp_path / "home"), "PATH": "/usr/bin:/bin:/opt/homebrew/bin"}
-    env = ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="g", environ=environ, dirs=state_dirs(environ)
-    )
+    env = make_env(repo, tmp_path, session_id="g")
     return env, ProcessManager(ProcessRegistry(env.tmp / "p")), Policy(DFMConfig())
 
 

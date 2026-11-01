@@ -5,11 +5,10 @@ import sys
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
+from dfm.cli.common import console
 from dfm.orchestration.setup import setup as run_setup
 
-console = Console()
 _STYLE = {"ok": "green", "changed": "cyan", "warn": "yellow", "fail": "red", "skip": "dim"}
 
 

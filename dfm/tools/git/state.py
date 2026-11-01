@@ -1,4 +1,4 @@
-"""Read-only Git state used for checkpoints and freshness (026 adds the full tool set)."""
+"""Read-only Git state used for checkpoints and freshness; `dfm.tools.git.tools` has the rest."""
 
 import hashlib
 import subprocess

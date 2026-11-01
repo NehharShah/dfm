@@ -370,9 +370,13 @@ class ProcessManager:
                 await _read_fd(err_r, Stream.STDERR, err, on_output),
             ]
             if stdin is not None and proc.stdin is not None:
-                proc.stdin.write(stdin.encode())
-                await proc.stdin.drain()
-                proc.stdin.close()
+                try:
+                    proc.stdin.write(stdin.encode())
+                    await proc.stdin.drain()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # it exited before reading it all; its exit code tells the story
+                finally:
+                    proc.stdin.close()
 
         timed_out = cancelled = False
         try:

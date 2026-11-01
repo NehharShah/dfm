@@ -5,14 +5,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from dfm.cli.github_cmd import _execute  # pyright: ignore[reportPrivateUsage]
-from dfm.cli.work_cmd import _runtime  # pyright: ignore[reportPrivateUsage]
+from dfm.cli.common import console, execute, make_runtime
 from dfm.orchestration.agent import outcome_payload
 from dfm.orchestration.ci import ci as run_ci
-
-console = Console()
 
 
 def ci(
@@ -39,7 +35,7 @@ def ci(
     """Find the failing CI step, reproduce it locally, and fix it only if it fails here too.
 
     Never re-runs or cancels remote workflows."""
-    rt = _runtime(ctx, repo, "fix CI", "ci")
+    rt = make_runtime(ctx, repo, "fix CI", "ci")
 
     async def work() -> tuple[int, str]:
         result = await run_ci(
@@ -61,4 +57,4 @@ def ci(
             console.print(outcome.report(), markup=False)
         return (0 if outcome.status == "completed" else 1), outcome.summary
 
-    _execute(rt, work)
+    execute(rt, work)

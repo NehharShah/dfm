@@ -9,7 +9,7 @@ from dfm.orchestration.implement import ImplementOptions, implement
 from dfm.orchestration.runtime import Runtime
 from dfm.tools.generated import generated_info
 from tests import repo_fixtures as fx
-from tests.helpers import DONE, ScriptedCoder
+from tests.helpers import DONE, ScriptedCoder, path_with_tools
 
 Git = Callable[..., str]
 PROTO = 'syntax = "proto3";\npackage calc;\n\nmessage Reading {\n  double value = 1;\n}\n'
@@ -76,7 +76,10 @@ def test_regeneration_commands(tmp_path: Path) -> None:
 
 
 @pytest.fixture
-def proto_repo(git_repo: Path, git: Git) -> Path:
+def proto_repo(home: Path, git_repo: Path, git: Git, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setenv(
+        "PATH", path_with_tools("protoc")
+    )  # found by the skip guard; `home` isolated PATH
     fx.write(
         git_repo,
         {

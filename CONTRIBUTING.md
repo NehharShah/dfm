@@ -7,7 +7,9 @@ Report security issues as described in [SECURITY.md](SECURITY.md), not in public
 
 ## Setup
 
-macOS on Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/uv/) and Git are required.
+To use DFM, install it from PyPI (`uv tool install "dfm-agent[mlx]"`, see the
+[README](README.md)). To work on it, run it from a checkout. macOS on Apple Silicon, Python
+3.12+, [uv](https://docs.astral.sh/uv/) and Git are required.
 
 ```bash
 git clone https://github.com/NehharShah/dfm && cd dfm
@@ -30,7 +32,7 @@ wheel and publishes `dfm-agent` to PyPI through trusted publishing (no stored to
 
 ## Checks
 
-CI runs these on macOS, and all must pass:
+CI runs these on macOS (Python 3.12, 3.14 and 3.15), and all must pass:
 
 ```bash
 uv run pytest
@@ -53,6 +55,12 @@ regenerated docs.
 
 Live model tests are opt-in because they load the model and heat the machine:
 `DFM_TEST_MODEL=mlx-community/Qwen3.8-27B-4bit uv run pytest -m mlx` (a directory also works).
+
+Tests never see your shell `PATH`: the `home` fixture limits it to the test venv and the
+system directories, so `uv run pytest` and `.venv/bin/python -m pytest` behave the same and no
+test can reach your real `gh`, `kubectl` or `cargo` by accident. A test that deliberately
+exercises an installed toolchain adds its directory with `tests.helpers.path_with_tools(...)`,
+and builds environments with `tests.helpers.make_env`.
 
 ## Pull requests
 

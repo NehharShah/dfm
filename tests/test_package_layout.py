@@ -18,7 +18,6 @@ SUBPACKAGES = [
     "lsp",
     "tools.filesystem",
     "tools.git",
-    "tools.github",
     "tools.shell",
     "tools.languages",
     "tools.docker",

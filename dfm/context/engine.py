@@ -324,15 +324,19 @@ class ContextEngine:
         return items
 
     def _find(self, names: set[str], limit: int) -> list[str]:
+        """Files called one of `names`, nearest the root first. Skipped directories (.venv,
+        node_modules, .git) are pruned before descent, not filtered after: on a repository with
+        a populated .venv that is the difference between a few hundred entries and tens of
+        thousands, three times a step."""
         found: list[str] = []
         root = self.env.repo_root
-        for path in root.rglob("*"):
-            if any(part in _SKIP_DIRS for part in path.relative_to(root).parts):
-                continue
-            if path.name in names and path.is_file():
-                found.append(path.relative_to(root).as_posix())
-                if len(found) >= limit:
-                    break
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS)
+            for name in sorted(filenames):
+                if name in names:
+                    found.append((Path(dirpath) / name).relative_to(root).as_posix())
+                    if len(found) >= limit:
+                        return found
         return found
 
     def _docs(self) -> list[ContextItem]:

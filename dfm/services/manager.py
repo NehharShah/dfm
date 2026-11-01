@@ -7,7 +7,7 @@
                     → `brew services start` (a shared, user-level service: last resort)
                   every start is classified and authorized (LOCAL_STATE_CHANGE: asks by default)
                   and recorded as DFM-owned; on a failed start the logs come back in the error
-    release(h):   stops only what DFM started (owned registry / process registry from 006)
+    release(h):   stops only what DFM started (owned registry / process registry)
 
 Only loopback hosts are touched. DFM never stops a service it did not start.
 """

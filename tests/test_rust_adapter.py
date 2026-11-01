@@ -17,7 +17,7 @@ from dfm.tools.languages.rust import crate_for, workspace_members
 from dfm.tools.results import FailedTest
 from dfm.tools.shell.runner import CommandRunner
 from tests import repo_fixtures as fx
-from tests.helpers import DONE, ScriptedCoder, sandboxed_runner
+from tests.helpers import DONE, ScriptedCoder, path_with_tools, sandboxed_runner
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CARGO = shutil.which("cargo")
@@ -182,6 +182,7 @@ async def test_live_rust_analyzer(tmp_path: Path) -> None:
 async def test_implement_fixes_a_rust_crate(
     home: Path, git_repo: Path, git: Callable[..., str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("PATH", path_with_tools("cargo", "rustc"))
     for name, value in toolchain_env().items():
         monkeypatch.setenv(name, value)  # `home` swaps HOME; rustup still needs the real toolchains
     shutil.copytree(FIXTURES / "rust_calc", git_repo, dirs_exist_ok=True)

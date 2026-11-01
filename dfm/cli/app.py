@@ -1,8 +1,4 @@
-"""The `dfm` command.
-
-Subcommands are registered here as their issues land; nothing is registered
-before it works.
-"""
+"""The `dfm` command: the Typer app, global options and subcommand registration."""
 
 import asyncio
 import sys
@@ -10,12 +6,12 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
 from dfm import __version__
 from dfm.cli.ask_cmd import ask
 from dfm.cli.benchmark_cmd import benchmark
 from dfm.cli.ci_cmd import ci
+from dfm.cli.common import console
 from dfm.cli.config_cmd import config_app
 from dfm.cli.diff_cmd import diff
 from dfm.cli.doctor_cmd import doctor
@@ -74,7 +70,6 @@ app.command("status")(status)
 app.command("profile")(profile)
 app.command("benchmark")(benchmark)
 app.command("setup")(setup)
-console = Console()
 
 
 def _version_callback(value: bool) -> None:

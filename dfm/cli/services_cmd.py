@@ -6,12 +6,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from dfm.cli.work_cmd import _runtime  # pyright: ignore[reportPrivateUsage]
+from dfm.cli.common import console, make_runtime
 from dfm.services import ServiceError, ServiceManager, detect
-
-console = Console()
 
 
 def services(
@@ -26,7 +23,7 @@ def services(
     as_json: Annotated[bool, typer.Option("--json", help="Machine-readable output.")] = False,
 ) -> None:
     """List known, running and DFM-owned local services (Postgres, Redis, devnets, ...)."""
-    rt = _runtime(ctx, repo, "services", "services")
+    rt = make_runtime(ctx, repo, "services", "services")
     manager = ServiceManager(rt.env, rt.pm, rt.policy, rt.dirs.data, on_event=rt.event)
 
     async def go() -> int:

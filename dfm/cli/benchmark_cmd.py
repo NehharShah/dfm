@@ -8,12 +8,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
 from dfm.benchmark import ABLATIONS, BY_ID, TASKS, run_suite, table, write_results
+from dfm.cli.common import console
 from dfm.config import state_dirs
-
-console = Console()
 
 
 def benchmark(

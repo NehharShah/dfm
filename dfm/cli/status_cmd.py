@@ -5,14 +5,12 @@ from pathlib import Path
 from typing import Annotated, Any, cast
 
 import typer
-from rich.console import Console
 
+from dfm.cli.common import console
 from dfm.config import discover_repo_root, state_dirs
 from dfm.observability import load
 from dfm.processes import ProcessRegistry
 from dfm.sessions import SessionStore
-
-console = Console()
 
 
 def _store() -> SessionStore:

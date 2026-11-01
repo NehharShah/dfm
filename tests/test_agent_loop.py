@@ -234,6 +234,67 @@ async def test_the_token_budget_stops_a_task(home: Path, repo: Path) -> None:
     assert outcome.steps <= 3  # 2 steps x 30k output tokens pass the 50k default
 
 
+@pytest.mark.parametrize(
+    ("tokens_per_step", "stops"),
+    [(25_000, True), (24_999, False)],  # two steps land exactly on / one short of the 50k default
+)
+async def test_the_token_budget_boundary(
+    home: Path, repo: Path, tokens_per_step: int, stops: bool
+) -> None:
+    from dfm.models.base import GenerateRequest, GenerateResult
+
+    class Verbose(ScriptedCoder):
+        async def generate(self, request: GenerateRequest) -> GenerateResult:
+            result = await super().generate(request)
+            return GenerateResult(result.text, self.name, 1, tokens_out=tokens_per_step)
+
+    look = {"action": "read", "reason": "look", "path": "src/calc/ops.py"}
+    # two steps (look, fix) then done: the check before step 3 sees exactly 2 x tokens_per_step
+    outcome, _ = await run_agent(repo, Verbose(look, FIX, DONE))
+    assert ("token budget used up" in outcome.summary) is stops, outcome.summary
+    if not stops:
+        assert outcome.status == "completed"
+
+
+async def test_the_step_limit_stops_a_task(home: Path, repo: Path) -> None:
+    look = {"action": "read", "reason": "look", "path": "src/calc/ops.py"}
+    outcome, _ = await run_agent(repo, ScriptedCoder(look), max_steps=3)
+    assert outcome.status == "failed" and outcome.summary == "stopped after 3 steps"
+    assert outcome.steps == 3
+
+
+async def test_the_repair_budget_stops_a_task(home: Path, repo: Path) -> None:
+    """Each edit changes the failure (so no-progress detection stays quiet) and none fixes it;
+    the repair budget is what ends the loop."""
+    edits = [
+        {
+            "action": "patch",
+            "reason": f"attempt {i}",
+            "path": "src/calc/ops.py",
+            "search": "return a - b" if i == 0 else f"return a - b - {i - 1}",
+            "replace": f"return a - b - {i}",
+        }
+        for i in range(6)
+    ]
+    outcome, _ = await run_agent(repo, ScriptedCoder(*edits, DONE), repair_budget=2, max_steps=20)
+    assert outcome.status == "failed" and outcome.summary == "repair budget (2) used up"
+
+
+async def test_no_progress_stops_a_task(home: Path, repo: Path) -> None:
+    """The same failure after three edits means the model is going in circles."""
+    noop = {
+        "action": "patch",
+        "reason": "rename",
+        "path": "src/calc/ops.py",
+        "search": "return a - b",
+        "replace": "return a - b  # still wrong",
+    }
+    undo = {**noop, "search": "return a - b  # still wrong", "replace": "return a - b"}
+    outcome, _ = await run_agent(repo, ScriptedCoder(noop, undo, noop, undo, DONE), max_steps=20)
+    assert outcome.status == "failed"
+    assert outcome.summary == "the same failure persisted after three edits"
+
+
 def test_compaction_keeps_one_line_per_old_step() -> None:
     from dfm.orchestration.agent import HISTORY_CHARS, HISTORY_KEEP_CHARS, AgentLoop
 

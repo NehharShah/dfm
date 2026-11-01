@@ -1,7 +1,7 @@
 """Pick a route for a request: deterministic rules first, Apple FM when unsure.
 
 Routes ending in a coder also carry a tier (`small` / `primary`). Adjusters run
-after the decision (resource manager downgrade, Reflex evidence) and may only
+after the decision (resource manager downgrade) and may only
 move between coder tiers or add reasons, never turn an edit into TOOLS_ONLY.
 A route is not a permission: every action a route leads to still goes through policy.
 """

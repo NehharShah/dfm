@@ -19,7 +19,7 @@ from dfm.policy.types import PolicyVerdict, ProposedAction
 from dfm.processes import ProcessManager, ProcessRegistry
 from dfm.services import ServiceError, ServiceManager, ServiceSpec, detect, port_open
 from tests import repo_fixtures as fx
-from tests.helpers import DONE, ScriptedCoder
+from tests.helpers import DONE, ScriptedCoder, path_with_tools
 
 Git = Callable[..., str]
 
@@ -171,8 +171,10 @@ def test_database_answers():
     reason="PostgreSQL binaries not installed",
 )
 async def test_integration_tests_needing_postgres_run_end_to_end(
-    home: Path, git_repo: Path, git: Git
+    home: Path, git_repo: Path, git: Git, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # the skip guard found Postgres on the developer's PATH; the isolated runtime gets that dir
+    monkeypatch.setenv("PATH", path_with_tools("postgres", "initdb", "psql", "pg_isready"))
     port = free_port()
     fx.write(
         git_repo,

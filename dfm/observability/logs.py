@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -13,6 +14,16 @@ from dfm.secrets import redact_deep, redact_text
 
 LOG_NAME = "dfm.jsonl"
 _STANDARD = set(vars(logging.makeLogRecord({})))
+
+
+class _DfmJsonHandler(RotatingFileHandler):
+    """DFM's own handler (so `configure` can find it again), writing user-only log files."""
+
+    def _open(self):  # type: ignore[override]  # the stdlib signature is untyped
+        stream = super()._open()
+        with contextlib.suppress(OSError):
+            Path(self.baseFilename).chmod(0o600)  # may hold redacted repository text
+        return stream
 
 
 class JsonFormatter(logging.Formatter):
@@ -41,14 +52,13 @@ def configure(
     path = logs_dir / LOG_NAME
     logger = logging.getLogger("dfm")
     for handler in list(logger.handlers):
-        if getattr(handler, "_dfm_json", False):
-            if Path(getattr(handler, "baseFilename", "")) == path:
+        if isinstance(handler, _DfmJsonHandler):
+            if Path(handler.baseFilename) == path:
                 return path
             logger.removeHandler(handler)
             handler.close()
-    handler = RotatingFileHandler(path, maxBytes=max_bytes, backupCount=backups, encoding="utf-8")
+    handler = _DfmJsonHandler(path, maxBytes=max_bytes, backupCount=backups, encoding="utf-8")
     handler.setFormatter(JsonFormatter())
-    handler._dfm_json = True  # type: ignore[attr-defined]
     logger.addHandler(handler)
     logger.setLevel(level)
     logger.propagate = False

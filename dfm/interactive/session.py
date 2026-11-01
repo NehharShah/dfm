@@ -17,6 +17,7 @@ working on its own changes; a file you have edited since stays protected.
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -238,12 +239,17 @@ class InteractiveSession:
             loop.history.append(earlier)
         try:
             outcome = await loop.run(text)
-        except BaseException:
+        except (asyncio.CancelledError, KeyboardInterrupt):
             turn.status, turn.summary = "interrupted", "stopped by the developer"
             self.rt.event("note", text=f"request {turn.n} interrupted")
-            if loop.services is not None:
-                await loop.services.release_all()
             raise
+        except Exception as exc:
+            # a bug or an unexpected tool failure: the trace says so (not "interrupted"), the
+            # developer sees it, and the session goes on
+            turn.status, turn.summary = "failed", f"{type(exc).__name__}: {exc}"
+            self.rt.event("failure", error=turn.summary)
+            self.display.error(f"The request failed: {turn.summary}")
+            return
         finally:
             changes = loop.checkpointer.modified_files()
             turn.left = {path: change.after for path, change in changes.items()}
@@ -265,9 +271,14 @@ class InteractiveSession:
             loop.history.append(earlier)
         try:
             answer = await loop.answer(text)
-        except BaseException:
+        except (asyncio.CancelledError, KeyboardInterrupt):
             turn.status, turn.summary = "interrupted", "stopped by the developer"
             raise
+        except Exception as exc:
+            turn.status, turn.summary = "failed", f"{type(exc).__name__}: {exc}"
+            self.rt.event("failure", error=turn.summary)
+            self.display.error(f"The question failed: {turn.summary}")
+            return
         turn.status = answer.status
         turn.summary = answer.text.strip().splitlines()[0][:120] if answer.text.strip() else ""
         if answer.status == "failed":

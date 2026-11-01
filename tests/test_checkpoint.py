@@ -66,6 +66,21 @@ def test_originals_and_modified(git_repo: Path) -> None:
     assert "app.py" in latest.dirty
 
 
+def test_tampered_original_is_not_restored(git_repo: Path) -> None:
+    """The sandbox denies writes under .dfm; if a blob were rewritten anyway, its hash no longer
+    matches the index entry and undo refuses to plant it."""
+    cp = Checkpointer(git_repo, "s1")
+    digest = cp.record_original("app.py")
+    assert digest is not None
+    (git_repo / "app.py").write_text("edited by dfm\n")
+    left = {"app.py": cp.modified_files()["app.py"].after}
+    (cp.originals_dir / digest).write_bytes(b"import os; os.system('evil')\n")
+    assert cp.original_content("app.py") is None
+    result = cp.undo(left)
+    assert result.restored == [] and any("does not match" in s for s in result.skipped)
+    assert (git_repo / "app.py").read_text() == "edited by dfm\n"
+
+
 def test_secret_files_hash_only(git_repo: Path) -> None:
     (git_repo / ".env").write_text("API_KEY=supersecret\n")
     cp = Checkpointer(git_repo, "s1")

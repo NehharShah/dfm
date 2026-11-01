@@ -7,8 +7,7 @@ from pathlib import Path
 import pytest
 
 import dfm.tools.filesystem.tools as tools_mod
-from dfm.config import DFMConfig, state_dirs
-from dfm.execution import ExecutionEnvironment
+from dfm.config import DFMConfig
 from dfm.policy import Approval, Policy, PolicyVerdict, ProposedAction
 from dfm.recovery import Checkpointer
 from dfm.tools.filesystem import (
@@ -22,6 +21,7 @@ from dfm.tools.filesystem import (
     parse_unified,
 )
 from tests import repo_fixtures as fx
+from tests.helpers import make_env
 
 SOURCE = "def add(a, b):\n    return a - b\n\n\ndef sub(a, b):\n    return a - b\n"
 
@@ -46,10 +46,7 @@ def repo(git_repo: Path) -> Path:
 def make_tools(
     repo: Path, tmp_path: Path, approver: Approve | None = None, **kw: object
 ) -> FsTools:
-    environ = {"HOME": str(tmp_path / "home"), "PATH": "/usr/bin:/bin"}
-    env = ExecutionEnvironment.create(
-        repo, DFMConfig(), session_id="fs", environ=environ, dirs=state_dirs(environ)
-    )
+    env = make_env(repo, tmp_path, session_id="fs")
     return FsTools(env, Policy(DFMConfig(), approver), **kw)  # type: ignore[arg-type]
 
 
@@ -105,6 +102,18 @@ def test_unified_diff_with_offset() -> None:
     out = apply_hunks(shifted, hunks)
     assert "return a + b" in out.text
     assert any("offset" in n for n in out.notes)
+
+
+def test_zero_context_hunks_insert_after_the_named_line() -> None:
+    """`diff -U0` writes `@@ -N,0 +M,k @@`: N is the line the insertion follows."""
+    source = "l1\nl2\nl3\nl4\nl5\n"
+    after_three = "--- a/f\n+++ b/f\n@@ -3,0 +4 @@\n+INSERTED\n"
+    out = apply_hunks(source, parse_unified(after_three)[0].hunks)
+    assert out.text == "l1\nl2\nl3\nINSERTED\nl4\nl5\n"
+    at_top = "--- a/f\n+++ b/f\n@@ -0,0 +1,2 @@\n+a\n+b\n"
+    assert apply_hunks(source, parse_unified(at_top)[0].hunks).text == "a\nb\n" + source
+    two = "--- a/f\n+++ b/f\n@@ -1,0 +2 @@\n+X\n@@ -4,0 +6 @@\n+Y\n"
+    assert apply_hunks(source, parse_unified(two)[0].hunks).text == "l1\nX\nl2\nl3\nl4\nY\nl5\n"
 
 
 def test_unified_diff_conflict() -> None:

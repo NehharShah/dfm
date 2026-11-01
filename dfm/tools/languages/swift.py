@@ -27,6 +27,7 @@ from dfm.tools.languages.base import (
     ToolCommand,
     canon_command,
     language_named,
+    nearest_dir_with,
     runs,
     which_all,
 )
@@ -71,12 +72,7 @@ def swift_testing_plugin_dir() -> str | None:
 
 def package_dir(repo: Path, rel_path: str | None) -> str:
     """The nearest directory at or above `rel_path` with a Package.swift ("." if none)."""
-    if not rel_path:
-        return "."
-    for parent in [Path(rel_path), *Path(rel_path).parents]:
-        if parent.as_posix() not in {"", "."} and (repo / parent / "Package.swift").is_file():
-            return parent.as_posix()
-    return "."
+    return nearest_dir_with(repo, rel_path, "Package.swift")
 
 
 class SwiftAdapter:

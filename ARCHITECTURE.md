@@ -111,11 +111,14 @@ reported as `failed`, with the reason.
 manager, policy engine, session store, model pool, router and integration providers.
 
 Configuration layers, in order: defaults, `~/.config/dfm/config.toml` (developer),
-`<repo>/.dfm/config.toml` (untrusted: may only tighten policy and may not select models), CLI
-flags. Reference: [docs/config.md](docs/config.md).
+`<repo>/.dfm/config.toml` (untrusted, an allowlist: it may tighten `network.*`, turn integrations
+and standing worktree consent off, and lower `limits.*`; everything else, including `models`, is
+refused with a warning), CLI flags. Reference: [docs/config.md](docs/config.md),
+[ADR 0009](docs/decisions/0009-config-layers.md).
 
 The execution environment defines the working directory, the filesystem boundary, a scrubbed
-child environment (allowlisted variables, secrets removed), the network mode and resource
+child environment (allowlisted variables, secrets removed, `core.fsmonitor=false` for every git
+process), the network mode and resource
 limits. The boundary covers the repository, DFM's state directories and approved paths. Key
 stores, cloud credentials and browser profiles are always excluded.
 
@@ -138,7 +141,7 @@ loaded. Each decision and its reasons are written to the session trace.
 
 Providers are cached against freshness keys (Git HEAD, dirty-file fingerprint, tool versions)
 and may be absent. The context engine collects candidates (referenced files, failures, the diff,
-RepoKG modules, RepoCanon facts, Reflex practices, LSP results, related tests, neighbours, docs),
+RepoKG modules, RepoCanon facts, Reflex practices, related tests, neighbours, docs),
 ranks them by fixed priority, fits them to a token budget, redacts secrets and records
 provenance: source, path, lines, reason, time, content hash and confidence. Secret files keep
 their keys and lose their values.
@@ -199,9 +202,11 @@ tool calls are translated to DFM actions. An unusable reply is retried once with
   checkpointed. A file changed while an approval prompt was open is not overwritten.
 - **Git.** The guard protects uncommitted work and refuses history rewrites. Large tasks can run
   in a separate worktree and return a patch.
-- **Commands.** Every command is classified, authorized, sandboxed, and run by the process
-  manager with timeouts, output limits and ownership records. DFM stops only processes it
-  started.
+- **Commands.** Every command is classified, authorized and run by the process manager with
+  timeouts, output limits and ownership records. Repository code (tests, builds, anything a
+  model proposes) runs sandboxed. DFM's own fixed-argv calls to `gh`, `docker`, `brew` and
+  `reflex` run unsandboxed: those programs need their own credentials and sockets, their argv
+  is DFM's, and the output is still data. DFM stops only processes it started.
 - **Integrations.** GitHub, Docker and Compose, Kubernetes, blockchain toolchains (Foundry, Cast,
   Anvil), local services and log inspection use the same runner and policy.
 
@@ -220,28 +225,37 @@ flowchart LR
 ```
 
 - **Classification.** Commands are parsed with shell semantics (pipes, redirects, `&&`,
-  `bash -c`, `env -S`). Each part is classified by a per-tool rule into an action class, from
-  `SAFE_READ` to `PRIVILEGED` and `UNKNOWN`. Rules account for options that execute code (`rg
-  --pre`, `sed e`, `git -c core.fsmonitor=…`, `tar -I`), every remote target (URLs, database
-  hosts, connection strings), and Kubernetes contexts and chain targets from flags and
-  environment. Commands with shell operators run through `/bin/sh`, matching how they were
-  classified. A compound command takes the class of its most dangerous part. `UNKNOWN` is never
-  treated as safe.
+  newlines, `bash -c`, `env -S`). Each part is classified by a per-tool rule into an action
+  class, from `SAFE_READ` to `PRIVILEGED` and `UNKNOWN`. Rules account for options that execute
+  code (`rg --pre`, `sed e` wherever the script sits, multi-line `awk`, `git -c
+  core.fsmonitor=…`, `tar -I`), abbreviated git long options, SQL with its comments stripped,
+  every remote target (URLs, database hosts, connection strings), and Kubernetes contexts and
+  chain targets from flags and environment. Whatever the shell would reinterpret after
+  classification is `UNKNOWN`: builtins that change command resolution (`alias`, `hash`,
+  `export`, `set`), `VAR=value` prefixes outside a short benign list (their values are
+  boundary-checked and shown to the approver), `$'…'` and brace expansion, a bare `cd`.
+  Commands with shell operators run through `/bin/sh`, matching how they were classified. A
+  compound command takes the class of its most dangerous part, and the approver sees the whole
+  line. `UNKNOWN` is never treated as safe (threat T16).
 - **Policy.** Each action class and network category maps to allow, ask or deny. Destructive,
   privileged, production-cluster and mainnet actions require a typed confirmation of the target.
   Without a terminal, ask means deny. Actions proposed from untrusted output (for example a
   package name printed by a test) always ask. Model text in prompts is shown literally.
-- **Sandbox.** Every command, including the model worker, runs under a per-run `sandbox-exec`
-  profile. Reads are denied in key stores, cloud credentials, keychains, wallets and browser
-  profiles. Writes are allowed only in the repository, temp directories and toolchain caches,
-  and never in DFM's configuration or state, Git hooks or Git config. Network is denied unless
-  every part of the command was approved for a network category. Inside an existing sandbox,
-  DFM relies on the outer one, because macOS cannot nest them.
+- **Sandbox.** Repository code and the model worker run under a per-run `sandbox-exec`
+  profile. Reads are denied in key stores, cloud credentials, keychains, wallets, browser
+  profiles, shell startup files and histories, other coding agents' state, and DFM's own
+  policy, traces, logs and caches. Writes are allowed only in the repository, temp directories
+  and toolchain caches, and never in DFM's configuration or state, `<repo>/.dfm`, the persisted
+  KV cache, DFM's own interpreter, Git hooks or Git config. Network is denied unless every part
+  of the command was approved for a network category; read-only tools that can start programs
+  (`sed`, `awk`, `less`, `find`, `git`) never share another part's approval. Inside an existing
+  sandbox, DFM relies on the outer one, because macOS cannot nest them.
 - **Secrets.** Everything sent to a model, trace, log or prompt is redacted: known token formats,
   high-entropy values, key/value pairs, command-line passwords and secret files in diffs. A write
   containing a redaction marker is refused.
-- **Git hardening.** DFM's own Git processes run with `core.fsmonitor=false`, so repository
-  configuration cannot execute code when DFM reads status.
+- **Git hardening.** Every git process DFM starts, its own and model-proposed ones, runs with
+  `core.fsmonitor=false` in its environment, so repository configuration cannot execute code
+  when status is read.
 
 ## Resource controls
 
@@ -281,13 +295,17 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 ## Storage
 
 ```text
-~/.config/dfm/config.toml                     developer configuration (XDG paths honoured)
-~/.local/share/dfm/sessions/                  session traces (JSONL)
+~/.config/dfm/config.toml                     developer configuration, mode 0600 ($XDG_CONFIG_HOME)
+~/.local/share/dfm/sessions/                  session traces (JSONL)           ($XDG_DATA_HOME)
 ~/.local/share/dfm/{logs,metrics,processes}/  logs, metrics, process ownership records
 ~/.local/share/dfm/cache/                     integration caches
+~/.local/share/dfm/models/                    locally stored model weights (a discovery root)
+~/.local/share/dfm/tmp/<session>/             a session's temp dir (removed when it closes)
 ~/.cache/dfm/kv/                              persisted KV cache, one file per model, mode 0600
-<repo>/.dfm/config.toml                       repository configuration (tighten-only)
+                                              ($XDG_CACHE_HOME)
+<repo>/.dfm/config.toml                       repository configuration (allowlist, tighten-only)
 <repo>/.dfm/checkpoints/<session>/            checkpoints (listed in .git/info/exclude)
+<repo>/.dfm/originals/                        pre-edit file contents, by hash, for /undo
 ```
 
 ## Degradation
@@ -295,7 +313,7 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 | Unavailable | Behaviour |
 |---|---|
 | RepoCanon | commands discovered from manifests and language adapters |
-| RepoKG | LSP and text search; structural diff skipped and reported |
+| RepoKG | text search and language-adapter defaults; structural diff skipped and reported |
 | Reflex | no historical practices |
 | Apple FM | deterministic routing; the local coder handles short text |
 | Memory for the primary coder | reduced context, then the small coder, then a reported refusal |
@@ -306,19 +324,20 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 ## Package layout (`dfm/`)
 
 ```text
-cli/            Typer commands
+cli/            Typer commands (shared scaffolding in cli/common.py)
 orchestration/  runtime, agent loop, modes (ask, plan, implement, review, ci, github, resume)
 routing/        routes and router
-models/         Model protocol, pool, structured output, apple/, mlx/ (worker, discovery,
-                output translation), resources (memory admission), thermal
+models/         Model protocol, pool, structured output, apple/, mlx/ (worker with cancel
+                and KV snapshots, discovery, output translation), resources (memory
+                admission), thermal
 context/        context engine and budgets
 provenance/     context items and provenance
 repository/     repository intelligence and freshness
 integrations/   repocanon/, repokg/, reflex/, github/
-tools/          filesystem/, git/, shell/ (classifier, rules, runner), languages/, github/,
-                docker/, kubernetes/, blockchain/, packages, logs
-lsp/            language server client
-execution/      execution environment and filesystem boundary
+tools/          filesystem/, git/, shell/ (classifier, rules, runner), languages/, docker/,
+                kubernetes/, blockchain/, packages, logs
+lsp/            language server client (built and tested; not yet wired into the context engine)
+execution/      execution environment, filesystem boundary, git hardening
 processes/      process manager and registry
 services/       local service lifecycle
 policy/         action classes, network categories, decisions, approvals

@@ -1,4 +1,4 @@
-"""Route selection: deterministic rules, Apple FM assist, Reflex evidence."""
+"""Route selection: deterministic rules, Apple FM assist, resource adjustment."""
 
 from dfm.routing.router import (
     CODER_ROUTES,

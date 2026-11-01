@@ -5,7 +5,7 @@ inspectors), secret files shown as keys only. Writes: boundary-checked (never
 into .git/), policy-authorized, refused if they contain redaction markers
 (writing "[REDACTED]" back would destroy the real value), checkpointed before
 the first change to each file, written atomically with the file mode preserved.
-Optional `guard` hook lets Git safety (027) veto writes to files the developer
+Optional `guard` hook lets Git safety veto writes to files the developer
 had already modified.
 """
 

@@ -46,6 +46,80 @@ def shell_tokens(command: str | Sequence[str]) -> list[str]:
 _INTERPRETERS = {"sh", "bash", "zsh", "dash", "fish", "python", "python3", "node", "perl", "ruby"}
 _SAFE_DEVICES = {"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/stdin", "/dev/tty"}
 _ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# `VAR=value cmd` prefixes that cannot change which program runs or what it loads. Anything
+# else (PATH, IFS, GIT_*, *_OPTIONS, *_CONFIG_PATH, LD_*/DYLD_*, PYTHON*, ...) can, so a
+# command with such a prefix is UNKNOWN and the developer sees the full line before it runs.
+_BENIGN_ASSIGNMENTS = frozenset(
+    {
+        "CI",
+        "NO_COLOR",
+        "FORCE_COLOR",
+        "CLICOLOR",
+        "CLICOLOR_FORCE",
+        "TERM",
+        "COLUMNS",
+        "LINES",
+        "TZ",
+        "LANG",
+        "LANGUAGE",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONUNBUFFERED",
+        "PYTHONHASHSEED",
+        "RUST_BACKTRACE",
+        "RUST_LOG",
+        "CARGO_TERM_COLOR",
+        "NODE_ENV",
+        "DEBUG",
+        "LOG_LEVEL",
+        "VERBOSE",
+    }
+)
+_BENIGN_ASSIGNMENT_PREFIXES = ("LC_",)
+# A shell expands these before the program sees them; the classifier would be reading a
+# different argument than the one that runs.
+_SHELL_EXPANSIONS = (
+    ("`", "command substitution"),
+    ("$(", "command substitution"),
+    ("<(", "process substitution"),
+    (">(", "process substitution"),
+    ("$'", "ANSI-C quoting"),
+    ('$"', "locale quoting"),
+)
+
+
+def _brace_expansion(command: str) -> bool:
+    """`{a,b}` or `{1..3}` outside quotes: the shell expands it into other arguments."""
+    quote: str | None = None
+    depth = 0
+    body = ""
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if quote:
+            if ch == quote:
+                quote = None
+            elif ch == "\\" and quote == '"':
+                i += 1
+        elif ch == "\\":
+            i += 1
+        elif ch in {"'", '"'}:
+            quote = ch
+        elif ch == "{":
+            depth += 1
+            body = ""
+        elif ch == "}" and depth:
+            depth -= 1
+            if "," in body or ".." in body:
+                return True
+        elif depth:
+            body += ch
+        i += 1
+    return False
+
+
+def _benign_assignment(assignment: str) -> bool:
+    name = assignment.split("=", 1)[0]
+    return name in _BENIGN_ASSIGNMENTS or name.startswith(_BENIGN_ASSIGNMENT_PREFIXES)
 
 
 @dataclass(frozen=True)
@@ -76,18 +150,19 @@ class Classification:
     def to_actions(self, proposed_by: str) -> list[ProposedAction]:
         """One ProposedAction per part; the command runs only if every one is allowed."""
         inside = not self.outside_boundary
+        whole = redact_text(self.command)
         return [
             ProposedAction(
                 kind="shell",
                 action_class=part.action,
                 # what the approver sees and the trace stores: never key material or tokens
-                summary=" ".join(shlex.quote(a) for a in redact_argv(list(part.argv)))
-                or redact_text(self.command),
+                summary=" ".join(shlex.quote(a) for a in redact_argv(list(part.argv))) or whole,
                 proposed_by=proposed_by,
                 target=part.target,
                 network=part.network,
                 inside_boundary=inside,
                 reasons=part.reasons + self.reasons,
+                command=whole if len(self.parts) > 1 else None,
             )
             for part in self.parts
         ]
@@ -106,14 +181,11 @@ def classify(
             tokens = _tokenize(command)
         except ValueError as exc:
             return _unknown(text, f"cannot parse: {exc}")
-        for marker, why in (
-            ("`", "command substitution"),
-            ("$(", "command substitution"),
-            ("<(", "process substitution"),
-            (">(", "process substitution"),
-        ):
+        for marker, why in _SHELL_EXPANSIONS:
             if marker in command:
                 reasons.append(why)
+        if _brace_expansion(command):
+            reasons.append("brace expansion")
     else:
         tokens = list(command)
 
@@ -210,6 +282,12 @@ def is_toolchain_path(path: str) -> bool:
     return normalized.startswith(_TOOLCHAIN_PREFIXES) or _XCODE_APP.match(normalized) is not None
 
 
+def _leaves_cwd(value: str) -> bool:
+    """`..`, `../x`, `./..`, `x/../..`: a relative path that climbs out of the working directory."""
+    normalized = os.path.normpath(value)
+    return normalized == ".." or normalized.startswith("../") or "/../" in value
+
+
 def _is_inside(path: str, inside: InsidePredicate | None) -> bool:
     if _SHELL_VAR.search(path):
         return False
@@ -217,9 +295,7 @@ def _is_inside(path: str, inside: InsidePredicate | None) -> bool:
         return True
     if inside is not None:
         return inside(path)
-    return not (
-        path.startswith(("/", "~")) or path == ".." or path.startswith("../") or "/../" in path
-    )
+    return not (path.startswith(("/", "~")) or _leaves_cwd(path))
 
 
 def _path_args(argv: Sequence[str]) -> list[str]:
@@ -241,12 +317,7 @@ def _path_args(argv: Sequence[str]) -> list[str]:
         if _SHELL_VAR.search(value) and not any(c.isspace() for c in value):
             paths.append(value)
             continue
-        if (
-            value.startswith(("/", "~"))
-            or value == ".."
-            or value.startswith("../")
-            or "/../" in value
-        ):
+        if value.startswith(("/", "~")) or _leaves_cwd(value):
             paths.append(value)
     return paths
 
@@ -263,12 +334,39 @@ def _unknown(text: str, reason: str) -> Classification:
 def _classify_simple(
     argv: list[str], inside: InsidePredicate | None, outside: list[str]
 ) -> list[Part]:
+    assignments: list[str] = []
+    while argv and _ASSIGNMENT.match(argv[0]):
+        assignments.append(argv[0])
+        argv = argv[1:]
+    # the value may point outside the repository (GIT_DIR=/other/.git, KUBECONFIG=~/x)
+    for path in _path_args(["", *(a.split("=", 1)[1] for a in assignments)]):
+        if path not in _SAFE_DEVICES and not _is_inside(path, inside):
+            outside.append(path)
+    if not argv:
+        return [Part(tuple(assignments), A.SAFE_LOCAL, None, ("variable assignment",))]
+    risky = [a for a in assignments if not _benign_assignment(a)]
+    if risky:
+        names = ", ".join(a.split("=", 1)[0] for a in risky)
+        return [
+            Part(
+                (*assignments, *argv),
+                A.UNKNOWN,
+                None,
+                (f"environment prefix may change what runs: {names}",),
+            )
+        ]
+    parts = _classify_program(argv, inside, outside)
+    if not assignments:
+        return parts
+    # the approver and the trace see the whole simple command, prefixes included
+    return [dataclasses.replace(p, argv=(*assignments, *p.argv)) for p in parts]
+
+
+def _classify_program(
+    argv: list[str], inside: InsidePredicate | None, outside: list[str]
+) -> list[Part]:
     from dfm.tools.shell import rules
 
-    while argv and _ASSIGNMENT.match(argv[0]):
-        argv = argv[1:]
-    if not argv:
-        return [Part((), A.SAFE_LOCAL, None, ("variable assignment",))]
     for path in _path_args(argv):
         if path not in _SAFE_DEVICES and not _is_inside(path, inside):
             outside.append(path)
