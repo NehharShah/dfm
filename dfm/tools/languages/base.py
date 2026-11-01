@@ -2,7 +2,8 @@
 
 An adapter turns repository facts (RepoCanon first) into concrete argv lists
 for format / check / test / lint, picks the right result parser, and names the
-LSP server. It never runs anything itself: commands go through CommandRunner.
+LSP server. Build, test and lint commands go through CommandRunner; the only process an
+adapter starts itself is a `--version` probe (`runs`) for tool discovery.
 """
 
 from __future__ import annotations

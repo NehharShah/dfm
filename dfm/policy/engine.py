@@ -100,6 +100,10 @@ class InteractiveApprover:
             f"[bold]{action.action_class}[/bold] proposed by {_shown(action.proposed_by)}: "
             f"{_shown(action.summary)}\n  reason: {_shown(verdict.reason)}"
         )
+        if action.command is not None:
+            # the parts that were allowed without asking run in the same shell, with the same
+            # network decision: the developer approves the line, not one word of it
+            self._console.print(f"  as part of: {_shown(action.command)}")
         if verdict.confirmation is Confirmation.HARD:
             phrase = _plain(hard_phrase(action))
             typed = await self._read(f"Type '{phrase}' to allow once: ")

@@ -1,6 +1,6 @@
 """`dfm security-review`: a security-focused review of a diff.
 
-Same discipline as `dfm review` (044): deterministic findings first, then an
+Same discipline as `dfm review`: deterministic findings first, then an
 optional model pass whose findings must quote evidence that verifies against the
 diff. On top of that:
 

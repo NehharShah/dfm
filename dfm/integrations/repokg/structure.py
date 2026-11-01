@@ -160,8 +160,15 @@ def _graph_at_ref_sync(repo: Path, ref: str) -> KG:
 
 
 async def graph_at_ref(repo: Path, ref: str = "HEAD") -> KG | None:
-    """The graph as of `ref`, built in a temporary detached worktree (removed afterwards)."""
+    """The graph as of `ref`, built in a temporary detached worktree (removed afterwards).
+    None when it cannot be built; `graph_at_ref_error` says why."""
+    graph, error = await graph_at_ref_or_error(repo, ref)
+    return graph if error is None else None
+
+
+async def graph_at_ref_or_error(repo: Path, ref: str = "HEAD") -> tuple[KG | None, str | None]:
+    """`(graph, None)`, or `(None, reason)` so a skipped structural diff can say why."""
     try:
-        return await asyncio.to_thread(_graph_at_ref_sync, repo.resolve(), ref)
-    except Exception:  # RepoKG raises RuntimeError/OSError for missing refs, shallow clones, ...
-        return None
+        return await asyncio.to_thread(_graph_at_ref_sync, repo.resolve(), ref), None
+    except Exception as exc:  # RepoKG raises RuntimeError/OSError for missing refs, shallow clones
+        return None, f"{type(exc).__name__}: {exc}"

@@ -7,7 +7,7 @@ module-level navigation questions over it; it never builds its own code graph.
   falls back to `repokg.cli.build_graph` with progress captured, so stdout stays clean.
 - PR lookup (network) only when the caller allows GitHub per network policy.
 - RepoKG's incremental scan cache lives in DFM's data dir, never in the repository.
-- Freshness (016): the graph is reused while Git HEAD, the dirty-file fingerprint and the
+- Freshness: the graph is reused while Git HEAD, the dirty-file fingerprint and the
   RepoKG version are unchanged.
 - Unavailable (not installed, not a Git repository, scan error) → None with a reason;
   callers fall back to LSP + text search.

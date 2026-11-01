@@ -88,6 +88,9 @@ class ProposedAction:
     network: NetworkCategory | None = None
     inside_boundary: bool = True
     reasons: tuple[str, ...] = ()
+    # the whole (redacted) command this action is one part of, when it is a part of one: the
+    # approver sees `git fetch origin && awk ...`, not only the part that asked
+    command: str | None = None
 
     def approval_key(self) -> str:
         return f"{self.kind}\x00{self.action_class}\x00{self.summary}\x00{self.target or ''}"

@@ -315,8 +315,8 @@ context/        context engine and budgets
 provenance/     context items and provenance
 repository/     repository intelligence and freshness
 integrations/   repocanon/, repokg/, reflex/, github/
-tools/          filesystem/, git/, shell/ (classifier, rules, runner), languages/, github/,
-                docker/, kubernetes/, blockchain/, packages, logs
+tools/          filesystem/, git/, shell/ (classifier, rules, runner), languages/, docker/,
+                kubernetes/, blockchain/, packages, logs
 lsp/            language server client (built and tested; not yet wired into the context engine)
 execution/      execution environment and filesystem boundary
 processes/      process manager and registry

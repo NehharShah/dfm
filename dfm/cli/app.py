@@ -1,8 +1,4 @@
-"""The `dfm` command.
-
-Subcommands are registered here as their issues land; nothing is registered
-before it works.
-"""
+"""The `dfm` command: the Typer app, global options and subcommand registration."""
 
 import asyncio
 import sys

@@ -10,7 +10,11 @@ from rich.console import Console
 
 from dfm.cli.repo_cmd import canon_provider, graph_provider
 from dfm.config import discover_repo_root
-from dfm.integrations.repokg.structure import graph_at_ref, roles_from_canon, structural_diff
+from dfm.integrations.repokg.structure import (
+    graph_at_ref_or_error,
+    roles_from_canon,
+    structural_diff,
+)
 
 console = Console()
 
@@ -38,11 +42,10 @@ def diff(
         return
     provider = graph_provider()
     after = asyncio.run(provider.graph(root))
-    before = asyncio.run(graph_at_ref(root, base))
+    before, why = asyncio.run(graph_at_ref_or_error(root, base))
     if after is None or before is None:
-        console.print(
-            f"Structural diff unavailable: {provider.last_error or 'cannot build graph at ' + base}"
-        )
+        reason = provider.last_error or (f"cannot build graph at {base}: {why}" if why else base)
+        console.print(f"Structural diff unavailable: {reason}")
         raise typer.Exit(1)
     roles = roles_from_canon(asyncio.run(canon_provider().analyze(root)))
     console.print()

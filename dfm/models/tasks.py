@@ -1,4 +1,8 @@
-"""Structured outputs DFM asks small models for (Apple FM first, coder as fallback)."""
+"""Structured output schemas for small-model helpers (Apple FM first, coder as fallback).
+
+The router uses `RouteSuggestion`; the others are schemas for helpers that are exercised by
+`tests/test_structured.py` against the fm CLI's schema dialect and kept for that purpose.
+"""
 
 from enum import StrEnum
 
@@ -38,14 +42,6 @@ class RouteSuggestion(BaseModel):
     route: Route = Field(description="Which worker should handle the request")
     reason: str = Field(description="One sentence")
     confidence: float = Field(description="0 to 1")
-
-
-class Requirements(BaseModel):
-    goal: str
-    requirements: list[str]
-    constraints: list[str]
-    acceptance: list[str] = Field(description="How we will know it is done")
-    open_questions: list[str]
 
 
 class LogError(BaseModel):

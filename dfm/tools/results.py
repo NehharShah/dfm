@@ -2,7 +2,7 @@
 
 Repair loops need structure (which test, which file and line, which message),
 not five thousand lines of log. Parsers here are deterministic; language
-adapters (033-039) pick one by reporter. `ran = False` means the test command
+adapters pick one by reporter. `ran = False` means the test command
 itself failed (missing tool, import/collection error, crash): a different
 problem from tests that ran and failed, and the summary says so.
 """

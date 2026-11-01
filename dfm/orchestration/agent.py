@@ -997,7 +997,3 @@ def outcome_payload(outcome: TaskOutcome) -> dict[str, Any]:
         "steps": outcome.steps,
         "session": outcome.session_id,
     }
-
-
-def repo_relative(path: Path, repo: Path) -> str:
-    return path.relative_to(repo).as_posix() if path.is_relative_to(repo) else str(path)

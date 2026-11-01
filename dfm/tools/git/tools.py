@@ -129,10 +129,6 @@ class Diff:
     files: list[DiffStat]
     text: str
 
-    @property
-    def lines_changed(self) -> int:
-        return sum((f.added or 0) + (f.removed or 0) for f in self.files)
-
 
 @dataclass(frozen=True)
 class Commit:

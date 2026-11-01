@@ -61,7 +61,6 @@ CHAIN_NAMES: dict[str, tuple[ChainKind, str]] = {
 _TESTNET_WORDS = re.compile(
     r"(sepolia|holesky|hoodi|goerli|testnet|amoy|fuji|chiado|alfajores|devnet|staging|test)", re.I
 )
-_MAINNET_WORDS = re.compile(r"mainnet|^eth[.-]|ethereum|polygon-rpc|arb1|base\.org", re.I)
 
 
 @dataclass(frozen=True)

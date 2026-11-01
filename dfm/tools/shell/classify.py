@@ -150,18 +150,19 @@ class Classification:
     def to_actions(self, proposed_by: str) -> list[ProposedAction]:
         """One ProposedAction per part; the command runs only if every one is allowed."""
         inside = not self.outside_boundary
+        whole = redact_text(self.command)
         return [
             ProposedAction(
                 kind="shell",
                 action_class=part.action,
                 # what the approver sees and the trace stores: never key material or tokens
-                summary=" ".join(shlex.quote(a) for a in redact_argv(list(part.argv)))
-                or redact_text(self.command),
+                summary=" ".join(shlex.quote(a) for a in redact_argv(list(part.argv))) or whole,
                 proposed_by=proposed_by,
                 target=part.target,
                 network=part.network,
                 inside_boundary=inside,
                 reasons=part.reasons + self.reasons,
+                command=whole if len(self.parts) > 1 else None,
             )
             for part in self.parts
         ]

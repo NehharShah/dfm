@@ -1,7 +1,7 @@
-"""GitHub flows: `dfm issue`, `implement-issue`, `pr`, `review-pr`, `fix-pr`, `comments` (046).
+"""GitHub flows: `dfm issue`, `implement-issue`, `pr`, `review-pr`, `fix-pr`, `comments`.
 
 All GitHub text is untrusted: it reaches models only inside `untrusted_block`, redacted.
-PR heads are checked out into a DFM worktree (028), never over the developer's tree; the
+PR heads are checked out into a DFM worktree, never over the developer's tree; the
 result of `fix-pr` is a patch file. With GitHub unreachable or not allowed, everything
 works from the local cache and says how old it is.
 """
@@ -132,7 +132,7 @@ async def review_pr(
     return PRReview(report, pr.source, notes)
 
 
-# ---------------------------------------------------------------- fix-pr: triage, fix, draft replies (048)
+# ---------------------------------------------------------------- fix-pr: triage, fix, draft replies
 
 
 class Triage(BaseModel):

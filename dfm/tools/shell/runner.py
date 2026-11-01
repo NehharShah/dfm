@@ -1,7 +1,7 @@
 """The one path from a proposed command to a running process.
 
-    classify (029) → every part authorized by policy (003) → [sandbox wrap (031)]
-      → ProcessManager.run (006) → command_started / command_finished trace events
+    classify → every part authorized by policy → [sandbox wrap]
+      → ProcessManager.run → command_started / command_finished trace events
 
 Commands may come from the developer, RepoCanon, a language adapter or a model:
 all of them take this path, so none of them can skip policy.

@@ -66,7 +66,7 @@ def repocanon_available() -> bool:
 
 
 class RepoCanonProvider:
-    """Analyze once, then reuse until the structural fingerprint changes (013).
+    """Analyze once, then reuse until the structural fingerprint changes.
 
     With `cache_root`, results persist across DFM runs in DFM's own data directory.
     """

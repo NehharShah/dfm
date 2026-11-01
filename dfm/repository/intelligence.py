@@ -1,8 +1,10 @@
-"""RepositoryIntelligence: RepoCanon + RepoKG (+ Reflex later) for one repository.
+"""RepositoryIntelligence: RepoCanon + RepoKG for one repository.
 
     canon  → what should happen?   (RepoCanon ProjectModel, or DegradedCanon)
     graph  → what is connected?    (RepoKG kg document, or None)
-    reflex → what worked before?   (added by 062)
+
+Reflex (what worked before) is a Runtime provider, not part of this object: its answers are
+historical evidence and never repository fact.
 
 DFM composes the upstream results; it does not copy them into its own model.
 Every piece records freshness or why it degraded, so answers can say how much
@@ -28,7 +30,6 @@ class RepositoryIntelligence:
     repo: Path
     canon: Any  # repocanon ProjectModel | DegradedCanon
     graph: KG | None
-    reflex: Any = None
     freshness: dict[str, str] = field(default_factory=lambda: {})
     degraded: list[str] = field(default_factory=lambda: [])
 
