@@ -138,7 +138,7 @@ loaded. Each decision and its reasons are written to the session trace.
 
 Providers are cached against freshness keys (Git HEAD, dirty-file fingerprint, tool versions)
 and may be absent. The context engine collects candidates (referenced files, failures, the diff,
-RepoKG modules, RepoCanon facts, Reflex practices, LSP results, related tests, neighbours, docs),
+RepoKG modules, RepoCanon facts, Reflex practices, related tests, neighbours, docs),
 ranks them by fixed priority, fits them to a token budget, redacts secrets and records
 provenance: source, path, lines, reason, time, content hash and confidence. Secret files keep
 their keys and lose their values.
@@ -295,7 +295,7 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 | Unavailable | Behaviour |
 |---|---|
 | RepoCanon | commands discovered from manifests and language adapters |
-| RepoKG | LSP and text search; structural diff skipped and reported |
+| RepoKG | text search and language-adapter defaults; structural diff skipped and reported |
 | Reflex | no historical practices |
 | Apple FM | deterministic routing; the local coder handles short text |
 | Memory for the primary coder | reduced context, then the small coder, then a reported refusal |
@@ -317,7 +317,7 @@ repository/     repository intelligence and freshness
 integrations/   repocanon/, repokg/, reflex/, github/
 tools/          filesystem/, git/, shell/ (classifier, rules, runner), languages/, github/,
                 docker/, kubernetes/, blockchain/, packages, logs
-lsp/            language server client
+lsp/            language server client (built and tested; not yet wired into the context engine)
 execution/      execution environment and filesystem boundary
 processes/      process manager and registry
 services/       local service lifecycle

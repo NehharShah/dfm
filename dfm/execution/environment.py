@@ -25,6 +25,7 @@ class BoundaryViolation(PermissionError):
 
 # Relative to the home directory. Denied even if the user approves a parent path.
 DEFAULT_DENIED_HOME_PATHS = (
+    # keys and cloud credentials
     ".ssh",
     ".aws",
     ".gnupg",
@@ -34,18 +35,44 @@ DEFAULT_DENIED_HOME_PATHS = (
     ".config/gcloud",
     ".config/gh",
     ".config/solana",
+    ".config/op",
     ".netrc",
     ".git-credentials",
     ".npmrc",
     ".pypirc",
     ".password-store",
+    ".vault-token",
     ".cargo/credentials",
     ".cargo/credentials.toml",
     ".terraform.d/credentials.tfrc.json",
+    ".cache/huggingface/token",
     ".foundry/keystores",
     ".starkli-wallets",
     ".ethereum/keystore",
     ".near-credentials",
+    # shell startup files and histories: tokens get exported there
+    ".zshrc",
+    ".zshenv",
+    ".zprofile",
+    ".bashrc",
+    ".bash_profile",
+    ".profile",
+    ".zsh_history",
+    ".bash_history",
+    ".local/share/fish/fish_history",
+    ".python_history",
+    ".node_repl_history",
+    ".psql_history",
+    ".mysql_history",
+    # other coding agents' state and credentials
+    ".claude",
+    ".claude.json",
+    ".codex",
+    ".cursor",
+    ".config/Cursor",
+    # (DFM's own policy and traces are denied to repository code by the sandbox profile, via
+    # `ExecutionEnvironment.private_state`; DFM itself reads and writes them)
+    # keychains, cookies, browser profiles, password managers
     "Library/Keychains",
     "Library/Cookies",
     "Library/Safari",
@@ -178,6 +205,10 @@ class ExecutionEnvironment:
     # DFM's own config and data dirs: inside the boundary for DFM, never writable by the code it
     # runs (it could rewrite DFM's policy or forge its process registry)
     state_roots: tuple[Path, ...] = ()
+    # The parts of that state repository code must not even read: the policy, session traces,
+    # logs, metrics, the process registry and integration caches. Model weights (`models/`)
+    # and this session's temp dir stay readable: the worker and tests live there.
+    private_state: tuple[Path, ...] = ()
 
     @classmethod
     def create(
@@ -218,6 +249,17 @@ class ExecutionEnvironment:
             state_roots=(
                 Path(os.path.realpath(dirs.data)),
                 Path(os.path.realpath(dirs.config)),
+            ),
+            private_state=tuple(
+                Path(os.path.realpath(p))
+                for p in (
+                    dirs.config,
+                    dirs.sessions,
+                    dirs.logs,
+                    dirs.metrics,
+                    dirs.processes,
+                    dirs.cache,
+                )
             ),
         )
 

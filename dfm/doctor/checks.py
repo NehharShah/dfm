@@ -16,6 +16,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from dfm.config import ConfigError, LoadedConfig, load_config
+from dfm.models.mlx.model import MLX_INSTALL_HINT
 from dfm.security.sandbox import already_sandboxed
 
 
@@ -221,7 +222,7 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
                     label,
                     Status.WARN,
                     "not installed",
-                    "run `dfm setup` (uv sync --extra mlx)",
+                    MLX_INSTALL_HINT,
                 )
             )
     if loaded is not None:
@@ -263,7 +264,7 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
                     label,
                     Status.WARN,
                     "not installed (degraded discovery)",
-                    "uv sync (sibling checkout ../" + module + ")",
+                    "reinstall dfm-agent: " + module + " is a required dependency",
                 )
             )
     if probe.which("reflex"):

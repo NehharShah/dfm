@@ -14,7 +14,7 @@ code. Repository knowledge comes from [RepoCanon](https://github.com/NehharShah/
 DFM sends no code or prompts to hosted models. Other network access (GitHub, package registries)
 is off or requires approval, per [policy](docs/policy.md).
 
-**Status:** early (0.0.1). Commands and configuration may change.
+**Status:** pre-alpha. Commands and configuration may change between releases.
 
 ## Requirements
 
@@ -33,7 +33,8 @@ uv run dfm setup                           # choose a local model
 uv run dfm                                 # interactive session in this repository
 ```
 
-Or install it as a command: `uv tool install dfm-agent` (from PyPI).
+Or install it as a command from PyPI: `uv tool install "dfm-agent[mlx]"` (the `[mlx]` extra is
+the local coding model; without it DFM answers questions but cannot edit code).
 
 `dfm` in a repository starts an interactive session: type what you want done, watch each step
 run, and `/undo` the last request if you don't want it. Single commands such as

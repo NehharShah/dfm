@@ -261,6 +261,50 @@ async def test_repository_code_cannot_write_what_dfm_trusts_later(tmp_path: Path
 
 
 @live
+async def test_repository_code_cannot_read_dfm_state_shell_files_or_other_agents(
+    tmp_path: Path,
+) -> None:
+    env = make_env(tmp_path, tmp_path / "home")
+    data, config = env.state_roots
+    files = {
+        "policy": config / "config.toml",
+        "trace": data / "sessions" / "s.jsonl",
+        "registry": data / "processes" / "p.json",
+        "zshrc": env.home / ".zshrc",
+        "history": env.home / ".zsh_history",
+        "claude": env.home / ".claude" / "settings.json",
+        "hf token": env.home / ".cache" / "huggingface" / "token",
+        "model weights": data / "models" / "m" / "config.json",  # the worker reads these
+        "session tmp": env.tmp / "scratch",  # tests write and read here
+        "other cache": env.home / ".cache" / "pip" / "x",
+    }
+    for path in files.values():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("SECRET\n")
+    probe = (
+        f"for name, path in {[(k, str(v)) for k, v in files.items()]!r}:\n"
+        "    try:\n"
+        "        open(path).read(); print(name, 'READ')\n"
+        "    except OSError:\n"
+        "        print(name, 'DENIED')\n"
+    )
+    _, out = await run_sandboxed(env, probe)
+    results = dict(line.rsplit(" ", 1) for line in out.strip().splitlines())
+    assert results == {
+        "policy": "DENIED",
+        "trace": "DENIED",
+        "registry": "DENIED",
+        "zshrc": "DENIED",
+        "history": "DENIED",
+        "claude": "DENIED",
+        "hf token": "DENIED",
+        "model weights": "READ",
+        "session tmp": "READ",
+        "other cache": "READ",
+    }
+
+
+@live
 async def test_inside_a_sandbox_no_second_one_is_applied(tmp_path: Path) -> None:
     from dfm.security.sandbox import already_sandboxed
 

@@ -1,4 +1,4 @@
-"""Reflex provider: handbook practices, skills, routing evidence."""
+"""Reflex provider: handbook practices and approved skills."""
 
 from dfm.integrations.reflex.provider import Practice, ReflexProvider, Skill, load_skill
 

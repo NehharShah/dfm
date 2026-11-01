@@ -66,6 +66,13 @@ THERMAL_POLL_S = 5.0
 CANCEL_GRACE_S = 5.0  # a cancelled worker has this long to answer before it is killed
 
 
+# How to get the local coder, whichever way DFM was installed.
+MLX_INSTALL_HINT = (
+    "install the mlx extra: `uv tool install 'dfm-agent[mlx]'` "
+    "(or `uv sync --extra mlx` in a checkout)"
+)
+
+
 def mlx_available() -> bool:
     try:
         import mlx_lm  # noqa: F401  # pyright: ignore[reportUnusedImport, reportMissingImports]

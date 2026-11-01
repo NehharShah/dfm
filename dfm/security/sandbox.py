@@ -176,6 +176,10 @@ def build_profile(
         for p in (*env.state_roots, *dfm_private_paths(env))
     )
     lines.append(f"(deny file-write* {private})")
+    # and never reads DFM's policy, traces, logs, metrics, registry or caches
+    if env.private_state:
+        unreadable = " ".join(f"(subpath {_quote(p)})" for p in env.private_state)
+        lines.append(f"(deny file-read* {unreadable})")
     lines.append(f"(allow file-write* (subpath {_quote(os.path.realpath(env.tmp))}))")
     for path in extra_write:
         lines.append(f"(allow file-write* (subpath {_quote(os.path.realpath(path))}))")

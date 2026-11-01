@@ -121,17 +121,18 @@ which records ownership so DFM stops only what it started.
 
 ## Agent loop
 
-Checkpointed stages: `analysis → plan → edit → format → check → test → (parse → repair)* →
-broader tests → lint → diff → structural diff → boundary check → verify requirements → trace →
-summarize`. Repair attempts are bounded and recorded. A failed patch is re-read, relocated,
-regenerated and validated; it never falls back to rewriting the whole file.
+Checkpointed stages (`dfm/recovery/checkpoint.py`): `analysis → plan → edit → test →
+(repair)* → verification`. Each checkpoint records the original content of every file touched
+so far, so `dfm resume` continues and `/undo` reverts. Repair attempts are bounded and recorded.
+A failed patch is re-read, relocated, regenerated and validated; it never falls back to
+rewriting the whole file.
 
 ## Storage
 
 ```text
 ~/.config/dfm/config.toml
 ~/.local/share/dfm/{sessions,models,cache,logs,metrics,processes}/
-~/.cache/dfm/kv/        persisted KV cache
+~/.cache/dfm/kv/        persisted KV cache ($XDG_CACHE_HOME honoured)
 <repo>/.dfm/            configuration and checkpoints (excluded from Git)
 ```
 
@@ -144,7 +145,7 @@ reads: [ADR 0006](decisions/0006-reflex-protocol.md),
 | Failure | Behaviour |
 |---|---|
 | RepoCanon unavailable | deterministic discovery from manifests |
-| RepoKG unavailable | LSP and text search |
+| RepoKG unavailable | text search and language-adapter defaults |
 | Reflex unavailable | no historical practices |
 | Apple FM unavailable | deterministic routing; local coder for summaries |
 | Primary coder out of memory | reduced context, idle models unloaded, then the small coder |

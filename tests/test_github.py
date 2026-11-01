@@ -72,6 +72,56 @@ async def test_checks_comments_and_failing_exit_code(home: Path, repo: Path, fak
     await rt.close("completed")
 
 
+@pytest.mark.parametrize(
+    ("mode", "expect"),
+    [
+        ("pending", "pending"),  # gh exits 8 while checks run; the JSON is still read
+        ("none", "empty"),  # "no checks reported" is an empty list, not an error
+        ("garbage", "error"),  # non-JSON output is a GitHubError, never a JSON traceback
+    ],
+)
+async def test_checks_error_branches(
+    home: Path, repo: Path, fake_gh: Path, tmp_path: Path, mode: str, expect: str
+) -> None:
+    allow_github(home)
+    configure_fake(tmp_path / "bin", checks_mode=mode)
+    rt = Runtime.create(repo, request="pr", mode="github")
+    gh = github_for(rt)
+    try:
+        if expect == "error":
+            with pytest.raises(GitHubError, match="unexpected output"):
+                await gh.checks(7)
+        else:
+            checks = (await gh.checks(7)).value
+            assert (checks == []) is (expect == "empty")
+    finally:
+        await rt.close("completed")
+
+
+async def test_fake_gh_rejects_what_real_gh_rejects(fake_gh: Path, tmp_path: Path) -> None:
+    """The fake is part of the test: a field rename or a dropped flag in production must fail
+    here, not only against GitHub."""
+    import subprocess
+
+    gh = tmp_path / "bin" / "gh"
+    ok = subprocess.run(
+        [gh, "issue", "view", "42", "--json", "title", "-R", "a/b"], capture_output=True, text=True
+    )
+    assert ok.returncode == 0 and json.loads(ok.stdout)["title"]
+    unknown = subprocess.run(
+        [gh, "issue", "view", "42", "--json", "titel", "-R", "a/b"], capture_output=True, text=True
+    )
+    assert unknown.returncode == 1 and "Unknown JSON field" in unknown.stderr
+    no_repo = subprocess.run(
+        [gh, "issue", "view", "42", "--json", "title"], capture_output=True, text=True
+    )
+    assert no_repo.returncode == 2
+    no_filter = subprocess.run(
+        [gh, "run", "list", "--json", "url", "-R", "a/b"], capture_output=True, text=True
+    )
+    assert no_filter.returncode == 2
+
+
 async def test_writes_always_ask(home: Path, repo: Path, fake_gh: Path) -> None:
     allow_github(home)  # reads allowed; a comment is REMOTE_WRITE and asks (no TTY → no)
     rt = Runtime.create(repo, request="comment", mode="github")
