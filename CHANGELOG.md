@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-10-31
+
 ### Added
 
 - `!command` in the interactive session runs a command yourself, through the same policy and
