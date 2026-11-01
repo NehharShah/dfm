@@ -69,7 +69,7 @@ def test_discover_and_describe(tmp_path: Path) -> None:
 def test_mlx_supports_reads_the_installed_mlx_lm() -> None:
     assert not REAL_MLX_SUPPORTS("") and not REAL_MLX_SUPPORTS("nonexistent_arch")
     if not MLX_INSTALLED:
-        pytest.skip("mlx-lm not installed (uv sync --extra mlx)")
+        pytest.skip("mlx-lm not installed (Python 3.15, or not Apple Silicon)")
     assert REAL_MLX_SUPPORTS("gpt_oss")
 
 

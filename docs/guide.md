@@ -11,19 +11,21 @@ Reference: [commands](cli.md) · [configuration](config.md) · [policy](policy.m
 
 Requirements: macOS on Apple Silicon, Python 3.12 to 3.15, Git, and
 [uv](https://docs.astral.sh/uv/) or [pipx](https://pipx.pypa.io/). Apple FM requires Apple
-Intelligence (`fm available` reports its status). The local coder requires the `mlx` extra and
-a downloaded model.
+Intelligence (`fm available` reports its status). The local coder requires `mlx-lm`, which DFM
+installs on Python 3.12 to 3.14, and a downloaded model.
 
 DFM is on PyPI as `dfm-agent` (the name `dfm` was taken); the command is `dfm`.
 
 ```bash
-uv tool install "dfm-agent[mlx]"   # pipx install "dfm-agent[mlx]" works the same way
+uv tool install --python 3.14 dfm-agent   # or: pipx install --python python3.14 dfm-agent
 dfm --version
 dfm doctor                         # models, tools, integrations, policy
 ```
 
-Leave out `[mlx]` to install without the local coder: DFM then answers questions from
-repository facts and cannot edit code. `uv tool upgrade dfm-agent` upgrades; `uv tool uninstall
+`mlx-lm` does not install on Python 3.15 yet (its dependency `sentencepiece` has no 3.15
+build), so pin 3.14. On 3.15 DFM installs without it, answers questions from repository facts
+and cannot edit code; `dfm setup` says so. `dfm-agent[mlx]` still works and installs the same
+thing. `uv tool upgrade dfm-agent` upgrades; `uv tool uninstall
 dfm-agent` removes the command (your data under `~/.config/dfm` and `~/.local/share/dfm` stays
 until you delete it, see [data locations](#data-locations)).
 

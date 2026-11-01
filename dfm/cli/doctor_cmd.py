@@ -4,6 +4,7 @@ import json
 from typing import Annotated
 
 import typer
+from rich.markup import escape
 from rich.table import Table
 
 from dfm.cli.common import console
@@ -35,8 +36,9 @@ def doctor(
     table.add_column("status", no_wrap=True)
     table.add_column("detail", overflow="fold")
     for r in results:
-        detail = r.detail + (
-            f"  [dim]→ {r.remedy}[/dim]" if r.remedy and r.status is not Status.OK else ""
+        # detail and remedy are plain text: `dfm-agent[mlx]` must not be read as a style
+        detail = escape(r.detail) + (
+            f"  [dim]→ {escape(r.remedy)}[/dim]" if r.remedy and r.status is not Status.OK else ""
         )
         table.add_row(r.group, r.name, f"[{_STYLE[r.status]}]{r.status.value}[/]", detail)
     console.print(table)
