@@ -154,7 +154,8 @@ class Display:
         self._in_tests = False
         self.stop()
         if not p.get("ran", True):
-            self.detail("tests did not run", "yellow")
+            why = _one_line(p["error"], 140) if p.get("error") else ""
+            self.detail("tests did not run" + (f": {why}" if why else ""), "yellow")
             return
         passed, failed = p.get("passed", 0), p.get("failed", 0)
         ok = bool(p.get("ok"))

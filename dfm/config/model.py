@@ -107,6 +107,8 @@ class LimitsSettings(_Section):
     read_range_lines: int = Field(default=2000, ge=10)
     # output tokens one task may generate in all, across steps and retries (bounds its energy)
     task_output_tokens: int = Field(default=50_000, ge=1000)
+    # minutes one task may run before DFM stops it and reports (checked between steps)
+    task_minutes: int = Field(default=15, ge=1)
 
 
 class DFMConfig(_Section):

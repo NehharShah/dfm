@@ -92,9 +92,17 @@ def test_command_not_found_and_timeout() -> None:
     missing = parse_test_output(
         ProcessResult(("pytest",), 127, "", "sh: pytest: command not found", 3)
     )
-    assert not missing.ran and "not found" in missing.errors[0]
+    assert not missing.ran and missing.command_missing and "not found" in missing.errors[0]
     slow = parse_test_output(ProcessResult(("pytest",), None, "", "", 5000, timed_out=True))
-    assert not slow.ran and "timed out" in slow.errors[0]
+    assert not slow.ran and not slow.command_missing and "timed out" in slow.errors[0]
+
+
+def test_command_missing_inside_the_macos_sandbox() -> None:
+    """sandbox-exec cannot exec the tool: exit 71, not a shell's 127."""
+    stderr = "sandbox-exec: execvp() of 'pytest' failed: No such file or directory\n"
+    report = parse_test_output(ProcessResult(("sandbox-exec", "pytest"), 71, "", stderr, 4))
+    assert not report.ran and report.command_missing
+    assert report.errors == ["test command not found: `pytest` is not installed here"]
 
 
 def test_jest_json() -> None:

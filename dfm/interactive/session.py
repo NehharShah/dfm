@@ -37,6 +37,7 @@ from dfm.tools.shell.runner import CommandRunner
 
 TurnKind = Literal["task", "question", "review", "plan", "shell"]
 CONTEXT_TURNS = 6  # earlier turns the coder is told about
+EXIT_WORDS = {"exit", "quit", "q"}
 ANSWER_STEPS = 12  # a question gets fewer steps than a change
 SHELL_LINES = 200  # command output shown for `!command`
 
@@ -53,7 +54,7 @@ Type what you want done, or ask a question about the repository.
   /status          session, models and what changed
   /clear           forget earlier requests (files are not touched)
   /help            this list
-  /exit            end the session (Ctrl-D also works)
+  /exit            end the session (also exit, quit, q, or Ctrl-D)
 
 Ctrl-C stops the current request; the session stays open.
 Esc then Enter inserts a newline."""
@@ -113,6 +114,8 @@ class InteractiveSession:
         text = line.strip()
         if not text:
             return True
+        if text.lower() in EXIT_WORDS:  # what people type to leave a shell
+            return False
         self.display.start_turn()
         try:
             if text.startswith("/"):

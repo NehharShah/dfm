@@ -37,3 +37,10 @@ Qwen3.8 27B: 20 at `xhigh`, 17 at `medium`) for far fewer tokens. Set `models.re
 to restore the previous behaviour. The cache file contains redacted repository text from
 prompts; it is readable only by the user and can be deleted. Task success and energy per task
 across the benchmark have not yet been measured with these settings.
+
+Addendum (2026-10-31): a task also has a wall-clock limit (`limits.task_minutes`, default 15),
+checked between steps, so a long step can overrun it. In a live run where `pytest` was not
+installed, the coder spent about ten minutes looking for it, with one step taking three
+minutes, and stayed within its token budget. A missing test tool is now recognised inside the
+sandbox (exit 71, `execvp() … failed`), reported as "not installed here", and the coder is told
+not to look for it or install it.

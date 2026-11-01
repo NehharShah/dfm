@@ -391,3 +391,49 @@ async def test_bang_runs_the_developers_command_under_policy(home: Path, repo: P
     assert "refused by policy" in shown
     assert "! needs a command" in shown
     assert [t.status for t in session.turns] == ["ran", "ran", "refused"]
+
+
+def test_display_says_why_tests_did_not_run(tmp_path: Path) -> None:
+    out = io.StringIO()
+    display = Display(Console(file=out, width=140), tmp_path)
+    error = "test command not found: `pytest` is not installed here"
+    display.event("test_finished", {"ok": False, "ran": False, "error": error})
+    assert (
+        "tests did not run: test command not found: `pytest` is not installed here"
+        in out.getvalue()
+    )
+
+
+# ---------------------------------------------------------------- leaving, and typing ahead
+
+
+async def test_exit_words_end_the_session(home: Path, repo: Path) -> None:
+    session, _ = make_session(repo)
+    for word in ("exit", "Quit", " q "):
+        assert not await session.handle(word)
+    assert await session.handle("exit the loop early in parse()")  # a request, not a command
+    await session.rt.close("completed")
+    assert [t.request for t in session.turns] == ["exit the loop early in parse()"]
+
+
+def test_type_ahead_is_not_echoed_but_kept_for_the_next_prompt() -> None:
+    import select
+    import termios
+
+    from dfm.interactive.repl import no_echo
+
+    master, slave = os.openpty()
+    with os.fdopen(slave, "r", closefd=False) as tty:
+        before = termios.tcgetattr(slave)
+        assert before[3] & termios.ECHO
+        with no_echo(tty):
+            assert not termios.tcgetattr(slave)[3] & termios.ECHO
+            os.write(master, b"next request\n")
+            echoed, _, _ = select.select([master], [], [], 0.2)
+            assert echoed == []  # nothing printed over the running request
+        assert termios.tcgetattr(slave) == before
+        assert os.read(slave, 100) == b"next request\n"  # still queued for the prompt
+    with no_echo(io.StringIO()):  # not a terminal: nothing to do
+        pass
+    os.close(master)
+    os.close(slave)

@@ -9,6 +9,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 - `!command` in the interactive session runs a command yourself, through the same policy and
   sandbox as the model's commands.
+- `limits.task_minutes` (default 15): a task that runs longer stops between steps and reports
+  what it verified so far.
 
 ### Fixed
 
@@ -18,6 +20,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 - `dfm` started a session in the home folder and treated everything under it as the repository.
   It now refuses the home folder, its parents and `/`, and warns outside a Git repository.
 - The session banner showed the model's Hugging Face snapshot hash instead of its name.
+- Typing `exit` or `quit` in the interactive session sent it to the model as a question; it now
+  ends the session, like `/exit`.
+- Keys typed while a request ran were echoed over its output; they now wait at the next prompt.
+- A test tool that is not installed (for example `pytest` outside a virtual environment) was
+  reported as a failed run inside the macOS sandbox (exit 71), and the coder spent its steps
+  looking for the tool. DFM now reports "`pytest` is not installed here", tells the coder not to
+  look for it or install it, and lists the tests as not verified.
 
 ## [0.0.3] - 2026-10-31
 

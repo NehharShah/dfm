@@ -367,6 +367,8 @@ class AgentLoop:
         self.reasoning: Literal["auto", "low", "medium", "high"] = config.models.reasoning
         self.struggling = False  # the last step failed: think harder on the next one
         self.token_budget = config.limits.task_output_tokens
+        self.time_limit_s = config.limits.task_minutes * 60.0
+        self.started = time.monotonic()  # reset when a task starts
         self.compacted: list[str] = []  # one line per step that left the verbatim history
         self.repair_budget = repair_budget
         self.context_tokens = context_tokens
@@ -435,6 +437,7 @@ class AgentLoop:
             passed=report.passed,
             failed=len(report.failed),
             ran=report.ran,
+            error=None if report.ran or not report.errors else report.errors[0][:300],
         )
         self.last_report = report
         return report
@@ -557,6 +560,14 @@ class AgentLoop:
         if baseline is not None:
             self.history.append(
                 "Baseline tests:\n" + untrusted_block("test-output", compress(baseline))
+            )
+        if baseline is not None and baseline.command_missing:
+            # without this the coder spends its steps hunting for (or installing) the tool
+            self.rt.event("note", text=f"tests cannot run here: {baseline.errors[0]}")
+            self.history.append(
+                "The test command cannot start because the tool is not installed for this "
+                "repository. Do not look for it, install it or run it another way. Make the "
+                "change from the code; DFM reports the tests as not verified."
             )
         self.checkpointer.save(
             Stage.ANALYSIS, state={"baseline": baseline.summary() if baseline else None}
@@ -808,9 +819,12 @@ class AgentLoop:
         self.adapter = select_adapter(self.rt.repo, self.intel.canon)
         if self.adapter is not None:
             self.commands = self.adapter.commands(self.rt.repo, self.intel.canon)
+        self.started = time.monotonic()
         for step in range(1, self.max_steps + 1):
             if self.coder is not None and self.coder.tokens_out >= self.token_budget:
                 return Answer("failed", f"token budget used up ({self.coder.tokens_out})", step)
+            if self.out_of_time():
+                return Answer("failed", self.time_limit_summary(), step)
             try:
                 action = await self._next_action(
                     question, step, instructions=ANSWER_INSTRUCTIONS, tools=ANSWER_TOOLS
@@ -833,11 +847,18 @@ class AgentLoop:
             self._observe(step, action, observation)
         return Answer("failed", f"no answer after {self.max_steps} steps", self.max_steps)
 
+    def out_of_time(self) -> bool:
+        return time.monotonic() - self.started >= self.time_limit_s
+
+    def time_limit_summary(self) -> str:
+        return f"time limit reached ({self.time_limit_s / 60:g} min, `limits.task_minutes`)"
+
     def _read_only_command(self, command: str) -> bool:
         return classify(command, inside=self.rt.env.is_inside).action is ActionClass.SAFE_READ
 
     async def run(self, request: str) -> TaskOutcome:
         sid = self.rt.session.id
+        self.started = time.monotonic()
         self.rt.event("user_request", text=request)
         blocked = await self.analyze(request)
         if blocked:
@@ -858,6 +879,10 @@ class AgentLoop:
             if self.coder is not None and self.coder.tokens_out >= self.token_budget:
                 finished = "budget"
                 summary = f"token budget used up ({self.coder.tokens_out} output tokens)"
+                break
+            if self.out_of_time():
+                finished = "budget"
+                summary = self.time_limit_summary()
                 break
             try:
                 action = await self._next_action(request, step)

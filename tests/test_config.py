@@ -56,6 +56,7 @@ SPEC_DEFAULTS = {
         "read_text_bytes": 262144,
         "read_range_lines": 2000,
         "task_output_tokens": 50000,
+        "task_minutes": 15,
     },
 }
 

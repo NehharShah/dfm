@@ -54,6 +54,7 @@ Network rules are `allow`, `ask` or `deny`; `ask` with no interactive terminal m
 | `limits.read_text_bytes` | int | `262144` | files above this are not read into model context (a stub instead) |
 | `limits.read_range_lines` | int | `2000` |  |
 | `limits.task_output_tokens` | int | `50000` | output tokens one task may generate in all, across steps and retries (bounds its energy) |
+| `limits.task_minutes` | int | `15` | minutes one task may run before DFM stops it and reports (checked between steps) |
 
 Sections: `[integrations]`, `[models]`, `[network]`, `[security]`, `[git]`, `[telemetry]`, `[limits]`.
 
