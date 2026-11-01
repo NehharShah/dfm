@@ -14,22 +14,17 @@ class _Section(BaseModel):
 
 class RepoCanonSettings(_Section):
     enabled: bool = True
-    required: bool = True
 
 
 class RepoKGSettings(_Section):
     enabled: bool = True
-    required: bool = True
-    incremental: bool = True
 
 
 class ReflexSettings(_Section):
     enabled: bool = True
-    required: bool = False
     session_export: bool = True
     use_skills: bool = True
     use_handbook: bool = True
-    use_routing_history: bool = True
 
 
 class IntegrationsSettings(_Section):
@@ -54,8 +49,8 @@ class LocalModelSettings(_Section):
     # Only local providers exist. A hosted provider name is a validation error, not a fallback.
     provider: Literal["mlx"] = "mlx"
     model: str = ""
-    lazy_load: bool = True
-    context: int = 32768  # target context; the resource manager may lower it
+    # target context; the resource manager may lower it. Below 1024 no agent step fits.
+    context: int = Field(default=32768, ge=1024)
 
 
 class ModelsSettings(_Section):
@@ -65,7 +60,7 @@ class ModelsSettings(_Section):
     # macOS thermal pressure at which local generation slows down to let the laptop cool
     thermal_limit: Literal["off", "moderate", "heavy"] = "moderate"
     # fixed sampling seed for reproducible runs (benchmarks); unset: a fresh one each process
-    seed: int | None = None
+    seed: int | None = Field(default=None, ge=0)
     # how hard a reasoning model thinks per agent step: auto is medium, high right after a
     # failed edit or error (the template default can be the most expensive level)
     reasoning: Literal["auto", "low", "medium", "high"] = "auto"
@@ -85,30 +80,25 @@ class NetworkSettings(_Section):
 
 
 class SecuritySettings(_Section):
-    redact_secrets: bool = True
+    # Redaction, the protected-path denylist and the Git guard are not settings: they are
+    # always on (AGENTS.md runtime safety rules). Only what has an off position is here.
     repo_filesystem_boundary: bool = True
-    allow_home_directory_reads: bool = False
     # Writes to kube contexts/namespaces that look like production (prod, production, live)
     allow_production_cluster_writes: bool = False
 
 
 class GitSettings(_Section):
-    preserve_dirty_worktree: bool = True
     prefer_worktree_for_large_tasks: bool = True
-
-
-class TelemetrySettings(_Section):
-    enabled: bool = False
 
 
 class LimitsSettings(_Section):
     # files above this are not read into model context (a stub instead)
-    read_text_bytes: int = Field(default=256 * 1024, ge=1024)
-    read_range_lines: int = Field(default=2000, ge=10)
+    read_text_bytes: int = Field(default=256 * 1024, ge=1024, le=64 * 1024 * 1024)
+    read_range_lines: int = Field(default=2000, ge=10, le=100_000)
     # output tokens one task may generate in all, across steps and retries (bounds its energy)
-    task_output_tokens: int = Field(default=50_000, ge=1000)
+    task_output_tokens: int = Field(default=50_000, ge=1000, le=10_000_000)
     # minutes one task may run before DFM stops it and reports (checked between steps)
-    task_minutes: int = Field(default=15, ge=1)
+    task_minutes: int = Field(default=15, ge=1, le=24 * 60)
 
 
 class DFMConfig(_Section):
@@ -117,5 +107,4 @@ class DFMConfig(_Section):
     network: NetworkSettings = Field(default_factory=NetworkSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
     git: GitSettings = Field(default_factory=GitSettings)
-    telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
     limits: LimitsSettings = Field(default_factory=LimitsSettings)

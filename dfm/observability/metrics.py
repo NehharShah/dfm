@@ -5,7 +5,7 @@ variable the Runtime sets); outside a session it is a no-op. When a session clos
 trace and the recorded metrics are summarised into `<data>/metrics/<session>.json`:
 latency per stage, model tokens, context size, tool calls, repair attempts and the
 process memory peak. Everything stays on this machine: DFM has no remote telemetry
-implementation at all (`telemetry.enabled` cannot send anything anywhere).
+implementation at all, and no setting that would turn one on.
 """
 
 from __future__ import annotations

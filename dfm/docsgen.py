@@ -85,9 +85,11 @@ def config_reference() -> str:
     _rows(DFMConfig, "", rows)
     lines = [
         HEADER + "# Configuration reference\n",
-        "User config: `~/.config/dfm/config.toml`. A repository may add `.dfm/config.toml`, which can only",
-        "**tighten** network and security settings and can never choose models (`dfm config show` lists",
-        "where each effective value came from). CLI flags (`--offline`, `--local-models`) apply last.\n",
+        "User config: `~/.config/dfm/config.toml`. A repository may add `.dfm/config.toml`, which is an",
+        "allowlist: it can **tighten** `network.*` rules, turn integrations and standing worktree consent",
+        "**off** (never on), and **lower** `limits.*`; every other key, and anything under `[models]`, is",
+        "refused with a warning (`dfm config show` lists where each effective value came from). CLI",
+        "flags (`--offline`, `--local-models`) apply last.\n",
         "Network rules are `allow`, `ask` or `deny`; `ask` with no interactive terminal means `deny`.\n",
         "| Key | Type | Default | Notes |",
         "|---|---|---|---|",

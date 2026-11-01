@@ -1,9 +1,10 @@
 """Merge defaults < user config < repo config < CLI flags into one validated DFMConfig.
 
-The repo layer is untrusted (it is a file in someone else's repository): it may
-tighten network/security/privacy settings, never loosen them, and it may not
-choose models. Rejected repo keys are skipped with a warning instead of failing,
-so a hostile or broken repo config cannot block DFM.
+The repo layer is untrusted (it is a file in someone else's repository). It is an
+allowlist: it may tighten `network.*`, move a boolean toward its safe value (turn an
+integration or worktree consent off, never on), and lower `limits.*`. Every other key,
+including anything under `models`, is refused. Rejected repo keys are skipped with a
+warning instead of failing, so a hostile or broken repo config cannot block DFM.
 """
 
 import copy
@@ -24,16 +25,21 @@ Source = Literal["default", "user", "repo", "cli"]
 _RULE_RANK = {"allow": 0, "ask": 1, "deny": 2}
 
 # Boolean settings where only one value is the safe one; the repo layer may move
-# toward it but never away from it.
+# toward it but never away from it. Off is safe for integrations (less runs, less leaves)
+# and for standing worktree consent (ask instead of allow).
 _SAFE_BOOL = {
-    "security.redact_secrets": True,
     "security.repo_filesystem_boundary": True,
-    "security.allow_home_directory_reads": False,
     "security.allow_production_cluster_writes": False,
-    "git.preserve_dirty_worktree": True,
-    "models.apple.remote": False,
-    "telemetry.enabled": False,
+    "git.prefer_worktree_for_large_tasks": False,
+    "integrations.repocanon.enabled": False,
+    "integrations.repokg.enabled": False,
+    "integrations.reflex.enabled": False,
+    "integrations.reflex.session_export": False,
+    "integrations.reflex.use_skills": False,
+    "integrations.reflex.use_handbook": False,
 }
+# Numeric budgets the repo layer may lower, never raise.
+_REPO_LOWER_ONLY = ("limits.",)
 
 _REPO_FORBIDDEN_SECTIONS = {"models"}
 
@@ -124,6 +130,9 @@ def _apply_repo_layer(
         if key.split(".")[0] in _REPO_FORBIDDEN_SECTIONS:
             warnings.append(f"{label}: '{key}' ignored, a repository cannot choose models")
             continue
+        if not _repo_may_set(key):
+            warnings.append(f"{label}: '{key}' ignored, a repository cannot set this setting")
+            continue
         candidate = copy.deepcopy(data)
         _set(candidate, key, value)
         try:
@@ -143,13 +152,21 @@ def _apply_repo_layer(
     return data
 
 
+def _repo_may_set(key: str) -> bool:
+    """The allowlist: anything not listed here is refused from the repo layer outright."""
+    return key.startswith("network.") or key in _SAFE_BOOL or key.startswith(_REPO_LOWER_ONLY)
+
+
 def _loosens(key: str, current: Any, proposed: Any) -> bool:
+    """For an allowlisted key: does `proposed` move away from the safe side of `current`?"""
     if key.startswith("network."):
         return _RULE_RANK[proposed] < _RULE_RANK[current]
     if key in _SAFE_BOOL:
         safe = _SAFE_BOOL[key]
         return current == safe and proposed != safe
-    return False
+    if key.startswith(_REPO_LOWER_ONLY):
+        return bool(proposed > current)
+    return True
 
 
 def _read_user(path: Path) -> dict[str, Any]:

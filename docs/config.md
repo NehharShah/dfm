@@ -2,35 +2,30 @@
 
 # Configuration reference
 
-User config: `~/.config/dfm/config.toml`. A repository may add `.dfm/config.toml`, which can only
-**tighten** network and security settings and can never choose models (`dfm config show` lists
-where each effective value came from). CLI flags (`--offline`, `--local-models`) apply last.
+User config: `~/.config/dfm/config.toml`. A repository may add `.dfm/config.toml`, which is an
+allowlist: it can **tighten** `network.*` rules, turn integrations and standing worktree consent
+**off** (never on), and **lower** `limits.*`; every other key, and anything under `[models]`, is
+refused with a warning (`dfm config show` lists where each effective value came from). CLI
+flags (`--offline`, `--local-models`) apply last.
 
 Network rules are `allow`, `ask` or `deny`; `ask` with no interactive terminal means `deny`.
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
 | `integrations.repocanon.enabled` | bool | `True` |  |
-| `integrations.repocanon.required` | bool | `True` |  |
 | `integrations.repokg.enabled` | bool | `True` |  |
-| `integrations.repokg.required` | bool | `True` |  |
-| `integrations.repokg.incremental` | bool | `True` |  |
 | `integrations.reflex.enabled` | bool | `True` |  |
-| `integrations.reflex.required` | bool | `False` |  |
 | `integrations.reflex.session_export` | bool | `True` |  |
 | `integrations.reflex.use_skills` | bool | `True` |  |
 | `integrations.reflex.use_handbook` | bool | `True` |  |
-| `integrations.reflex.use_routing_history` | bool | `True` |  |
 | `models.apple.enabled` | bool | `True` |  |
 | `models.apple.remote` | bool | `False` |  |
 | `models.primary.provider` | one of `mlx` | `"mlx"` | Only local providers exist. A hosted provider name is a validation error, not a fallback. |
 | `models.primary.model` | str | `""` |  |
-| `models.primary.lazy_load` | bool | `True` |  |
-| `models.primary.context` | int | `32768` | target context; the resource manager may lower it |
+| `models.primary.context` | int | `32768` | target context; the resource manager may lower it. Below 1024 no agent step fits. |
 | `models.fallback.provider` | one of `mlx` | `"mlx"` | Only local providers exist. A hosted provider name is a validation error, not a fallback. |
 | `models.fallback.model` | str | `""` |  |
-| `models.fallback.lazy_load` | bool | `True` |  |
-| `models.fallback.context` | int | `32768` | target context; the resource manager may lower it |
+| `models.fallback.context` | int | `32768` | target context; the resource manager may lower it. Below 1024 no agent step fits. |
 | `models.thermal_limit` | one of `off`, `moderate`, `heavy` | `"moderate"` | macOS thermal pressure at which local generation slows down to let the laptop cool |
 | `models.seed` | int \| None | `None` | fixed sampling seed for reproducible runs (benchmarks); unset: a fresh one each process |
 | `models.reasoning` | one of `auto`, `low`, `medium`, `high` | `"auto"` | how hard a reasoning model thinks per agent step: auto is medium, high right after a failed edit or error (the template default can be the most expensive level) |
@@ -44,18 +39,14 @@ Network rules are `allow`, `ask` or `deny`; `ask` with no interactive terminal m
 | `network.blockchain_rpc_write` | one of `allow`, `ask`, `deny` | `"deny"` |  |
 | `network.kubernetes` | one of `allow`, `ask`, `deny` | `"ask"` | cluster reads; writes always ask with a hard confirmation |
 | `network.other_network` | one of `allow`, `ask`, `deny` | `"deny"` |  |
-| `security.redact_secrets` | bool | `True` |  |
-| `security.repo_filesystem_boundary` | bool | `True` |  |
-| `security.allow_home_directory_reads` | bool | `False` |  |
+| `security.repo_filesystem_boundary` | bool | `True` | Redaction, the protected-path denylist and the Git guard are not settings: they are always on (AGENTS.md runtime safety rules). Only what has an off position is here. |
 | `security.allow_production_cluster_writes` | bool | `False` | Writes to kube contexts/namespaces that look like production (prod, production, live) |
-| `git.preserve_dirty_worktree` | bool | `True` |  |
 | `git.prefer_worktree_for_large_tasks` | bool | `True` |  |
-| `telemetry.enabled` | bool | `False` |  |
 | `limits.read_text_bytes` | int | `262144` | files above this are not read into model context (a stub instead) |
 | `limits.read_range_lines` | int | `2000` |  |
 | `limits.task_output_tokens` | int | `50000` | output tokens one task may generate in all, across steps and retries (bounds its energy) |
 | `limits.task_minutes` | int | `15` | minutes one task may run before DFM stops it and reports (checked between steps) |
 
-Sections: `[integrations]`, `[models]`, `[network]`, `[security]`, `[git]`, `[telemetry]`, `[limits]`.
+Sections: `[integrations]`, `[models]`, `[network]`, `[security]`, `[git]`, `[limits]`.
 
 Source of truth: `dfm/config/model.py` (dfm.config.model).

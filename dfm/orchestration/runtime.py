@@ -202,7 +202,9 @@ class Runtime:
             return outcome.result
 
         reflex = ReflexProvider(
-            run_reflex, enabled=integrations.reflex.enabled and integrations.reflex.use_handbook
+            run_reflex,
+            enabled=integrations.reflex.enabled and integrations.reflex.use_handbook,
+            use_skills=integrations.reflex.use_skills,
         )
         return cls(
             repo,
