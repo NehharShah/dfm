@@ -1,5 +1,4 @@
 import json
-import shutil
 import subprocess
 from collections.abc import Callable
 from pathlib import Path
@@ -101,7 +100,6 @@ async def test_checks_error_branches(
 async def test_fake_gh_rejects_what_real_gh_rejects(fake_gh: Path, tmp_path: Path) -> None:
     """The fake is part of the test: a field rename or a dropped flag in production must fail
     here, not only against GitHub."""
-    import subprocess
 
     gh = tmp_path / "bin" / "gh"
     ok = subprocess.run(
@@ -163,7 +161,7 @@ def make_pr_branch(repo: Path, git: Git, tmp_path: Path) -> str:
 
 
 async def test_review_pr_in_a_worktree(
-    home: Path, repo: Path, fake_gh: Path, git: Git, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    home: Path, repo: Path, fake_gh: Path, git: Git, tmp_path: Path
 ) -> None:
     allow_github(home)
     make_pr_branch(repo, git, tmp_path)
@@ -206,7 +204,7 @@ async def test_review_pr_uses_the_head_that_is_present(
 
 
 async def test_fix_pr_returns_a_patch(
-    home: Path, repo: Path, fake_gh: Path, git: Git, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    home: Path, repo: Path, fake_gh: Path, git: Git, tmp_path: Path
 ) -> None:
     allow_github(home)
     make_pr_branch(repo, git, tmp_path)
@@ -249,4 +247,3 @@ def test_no_github_remote(home: Path, calc_repo: Path) -> None:
     result = CliRunner().invoke(app, ["issue", "1", "--repo", str(calc_repo)])
     assert result.exit_code != 0
     assert "no github.com `origin` remote" in result.output
-    assert shutil.which("git") and subprocess.run(["true"]).returncode == 0

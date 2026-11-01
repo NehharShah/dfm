@@ -6,7 +6,6 @@ effective configuration is, and which files exist afterwards. Run alone: `pytest
 """
 
 import re
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -157,7 +156,6 @@ async def test_t6_git_destruction_never_runs_and_dirty_work_survives(
     assert (calc_repo / "notes.txt").read_text() == "uncommitted work\n"
     refusals = [p for p in coder.prompts if "refused by policy" in p]
     assert len(refusals) >= 4
-    assert shutil.which("git") is not None
 
 
 # ---------------------------------------------------------------- T8-T14: classifier and policy

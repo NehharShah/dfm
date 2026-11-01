@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import sys
+import time
 from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -185,6 +186,34 @@ _ALWAYS_ENV = {
 }
 
 
+STALE_TMP_AFTER_S = 24 * 3600
+
+
+def sweep_stale_tmp(tmp_root: Path, *, keep: Path, now: float | None = None) -> list[Path]:
+    """Remove other sessions' temp dirs that were last touched over a day ago.
+
+    `close()` removes a session's own tmp; a session killed mid-run (power, kill -9) leaves it,
+    and one left dir can be hundreds of megabytes of test artefacts. A day is well past any
+    task's time limit, so nothing still running is touched. Returns what was removed."""
+    removed: list[Path] = []
+    now = time.time() if now is None else now
+    try:
+        entries = list(tmp_root.iterdir())
+    except OSError:
+        return removed
+    for entry in entries:
+        if entry == keep or not entry.is_dir():
+            continue
+        try:
+            age = now - entry.stat().st_mtime
+        except OSError:
+            continue
+        if age > STALE_TMP_AFTER_S:
+            shutil.rmtree(entry, ignore_errors=True)
+            removed.append(entry)
+    return removed
+
+
 def scrub_env(environ: Mapping[str, str]) -> dict[str, str]:
     """Allowlisted variables minus anything whose name looks secret."""
     return {
@@ -228,6 +257,7 @@ class ExecutionEnvironment:
         repo = Path(os.path.realpath(repo_root))
         tmp = dirs.data / "tmp" / session_id
         tmp.mkdir(mode=0o700, parents=True, exist_ok=True)
+        sweep_stale_tmp(dirs.data / "tmp", keep=tmp)
         roots = (
             [repo, dirs.data, dirs.config]
             if config.security.repo_filesystem_boundary
