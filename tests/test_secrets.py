@@ -58,6 +58,17 @@ SECRETS: list[tuple[str, str]] = [
     ("client-key-data: LS0tLS1CRUdJTiBSU0E=", "LS0tLS1CRUdJTiBSU0E="),
     ("token: eyJhbGciOiJSUzI1NiIs.eyJpc3MiOiJrdWJlcm5ldGVz.abcdefghijklmnop", "abcdefghijklmnop"),
     ("aB3" + "x" * 40 + "Z9", "aB3" + "x" * 40 + "Z9"),
+    # review 2026-10-31: shapes that passed through
+    ("aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "wJalrXUtnFEMI"),
+    ("aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "wJalrXUtnFEMI"),
+    ("Private key: 0x" + "4c" * 32, "4c" * 32),  # `cast wallet new`, `anvil`
+    ("Secret key: 0x" + "5d" * 32, "5d" * 32),
+    (f"mnemonic: {SEED}", "junk"),  # unquoted: the whole line, not the first word
+    (f"Seed phrase: {SEED}", "junk"),
+    ("whsec_" + "h" * 32, "whsec_" + "h" * 32),
+    ("dop_v1_" + "a1" * 32, "dop_v1_" + "a1" * 32),
+    ("SK" + "b2" * 16, "SK" + "b2" * 16),
+    ("AGE-SECRET-KEY-1" + "Q" * 58, "AGE-SECRET-KEY-1" + "Q" * 58),
 ]
 
 
@@ -78,13 +89,44 @@ def test_context_profile_removes_secret(text: str, secret: str) -> None:
         "path = '/Users/ada/code/app'",
         "commit 3f2a9c1d8e7b6a5f4e3d2c1b0a9f8e7d6c5b4a3f",
         "bytes32 constant SLOT = 0x" + "d" * 64 + ";",
+        "tx hash 0x" + "e" * 64,  # a hash is not a key: only a labelled value is redacted
         "# check that each item from list has valid name and type before using it",
         "let tokens = lexer.tokenize(source);",
         "password_field = form.get_field('password')",
+        "the mnemonic for the ordering is: adults never trust",  # prose, no secret
+        "-".join(["aB"] * 40),  # long run of address/token characters without a digit
     ],
 )
 def test_context_profile_leaves_code_alone(text: str) -> None:
-    assert redact_text(text) == text
+    result = redact(text)
+    assert result.text == text
+    assert result.count == 0, result.rules
+
+
+def test_redaction_is_linear_in_the_input() -> None:
+    """A long line of token characters with `-`/`_` boundaries (minified JS, base64 tables)
+    used to make `high-entropy` and `email` rescan from every boundary."""
+    import time
+
+    def seconds(text: str) -> float:
+        start = time.perf_counter()
+        redact_text(text, Profile.TRACE)
+        return time.perf_counter() - start
+
+    small, large = "aB-" * 10_000, "aB-" * 40_000
+    assert seconds(large) < 8 * seconds(small) + 0.05  # ~4x input: linear, with slack
+
+
+def test_redact_diff_truncates_oversized_diffs_at_a_file_boundary() -> None:
+    from dfm.secrets import redact_diff
+
+    file_a = "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-x\n+y\n"
+    file_b = (
+        "diff --git a/b.py b/b.py\n--- a/b.py\n+++ b/b.py\n@@ -1 +1 @@\n" + "+" + "z" * 200 + "\n"
+    )
+    shown = redact_diff(file_a + file_b, limit=len(file_a) + 20)
+    assert shown.startswith(file_a)
+    assert "b/b.py" not in shown and "[diff truncated: " in shown and "1 file(s)" in shown
 
 
 def test_trace_profile_also_redacts_identity() -> None:

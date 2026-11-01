@@ -67,16 +67,28 @@ _RULES: list[_Rule] = [
     ),
     _r(
         "aws-configure",
-        r"\b(aws_secret_access_key|aws_session_token|aws_access_key_id)\s+(?!\[REDACTED)[^\s\"']+",
-        lambda m: f"{m.group(1)} [REDACTED]",
+        # `aws configure set aws_secret_access_key X` and the `~/.aws/credentials` INI form
+        r"\b(aws_secret_access_key|aws_session_token|aws_access_key_id)(\s*[=:]\s*|\s+)"
+        r"(?!\[REDACTED)[^\s\"']+",
+        lambda m: f"{m.group(1)}{m.group(2)}[REDACTED]",
+        flags=re.I,
+    ),
+    _r(
+        "mnemonic-line",
+        # `mnemonic: w1 w2 ... w12` unquoted: the whole rest of the line is the secret, not the
+        # first word (which `credential-field` alone would take)
+        r"\b(mnemonic|seed[ _-]?phrase|recovery[ _-]?phrase|secret[ _-]?recovery[ _-]?phrase)"
+        r"(\s*[=:]\s*)(?!\[REDACTED)[^\n]+",
+        lambda m: f"{m.group(1)}{m.group(2)}[REDACTED]",
         flags=re.I,
     ),
     _r(
         "credential-field",
-        r"([\"']?)\b(password|passwd|pwd|pass|secret|token|api[_-]?key|apikey|access[_-]?token"
-        r"|refresh[_-]?token|id[_-]?token|client[_-]?secret|auth[_-]?token|private[_-]?key"
-        r"|mnemonic|seed[_-]?phrase|client-key-data)\b\1(\s*[=:]\s*)"
-        r"(\"[^\"\n]*\"|'[^'\n]*'|[^\s&,;\"'}]+)",
+        # names may be spelled with a space in tool output (`Private key: 0x...` from cast/anvil)
+        r"([\"']?)\b(password|passwd|pwd|pass|secret|token|api[ _-]?key|apikey|access[ _-]?token"
+        r"|refresh[ _-]?token|id[ _-]?token|client[ _-]?secret|auth[ _-]?token|private[ _-]?key"
+        r"|secret[ _-]?key|signing[ _-]?key|mnemonic|seed[ _-]?phrase|client-key-data)\b\1"
+        r"(\s*[=:]\s*)(\"[^\"\n]*\"|'[^'\n]*'|[^\s&,;\"'}]+)",
         lambda m: f"{m.group(1)}{m.group(2)}{m.group(1)}{m.group(3)}[REDACTED]",
         flags=re.I,
     ),
@@ -119,7 +131,9 @@ _RULES: list[_Rule] = [
     ),
     _r(
         "url-credentials",
-        r"\b([a-z][a-z0-9+.-]*://)[^\s:/@\"']+:[^\s@\"']+@",
+        # the scheme is bounded: unbounded, it consumed a whole run of letters from every
+        # position before failing to find `://` (quadratic on minified text)
+        r"\b([a-z][a-z0-9+.-]{0,30}://)[^\s:/@\"']{1,256}:[^\s@\"']{1,256}@",
         lambda m: f"{m.group(1)}[REDACTED]@",
         flags=re.I,
     ),
@@ -136,6 +150,10 @@ _RULES: list[_Rule] = [
     _r("google-key", r"\bAIza[0-9A-Za-z_-]{35}\b", "[REDACTED_API_KEY]"),
     _r("google-oauth", r"\bya29\.[0-9A-Za-z_-]{20,}", "[REDACTED_TOKEN]"),
     _r("stripe-key", r"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}", "[REDACTED_API_KEY]"),
+    _r("stripe-webhook-secret", r"\bwhsec_[A-Za-z0-9]{20,}", "[REDACTED_API_KEY]"),
+    _r("digitalocean-token", r"\bdop_v1_[a-f0-9]{40,}\b", "[REDACTED_TOKEN]"),
+    _r("twilio-key", r"\bSK[0-9a-f]{32}\b", "[REDACTED_API_KEY]"),
+    _r("age-secret-key", r"\bAGE-SECRET-KEY-1[A-Z0-9]{50,}\b", "[REDACTED PRIVATE KEY]"),
     _r("npm-token", r"\bnpm_[A-Za-z0-9]{36}\b", "[REDACTED_TOKEN]"),
     _r("hf-token", r"\bhf_[A-Za-z0-9]{30,}\b", "[REDACTED_TOKEN]"),
     _r(
@@ -162,7 +180,9 @@ _RULES: list[_Rule] = [
     ),
     _r(
         "email",
-        r"\b(?!git@)[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b",
+        # the local part is bounded (RFC 5321: 64 octets), so a long run of address characters
+        # with no `@` costs 64 steps per position rather than a rescan of the whole run
+        r"\b(?!git@)[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})*\.[A-Za-z]{2,}\b",
         "[EMAIL]",
         _TRACE,
     ),
@@ -172,11 +192,22 @@ _RULES: list[_Rule] = [
     _r("encoded-home", r"-(?:Users|home)-[A-Za-z0-9._]+(?=-|\b)", "-~", _TRACE),
     _r(
         "high-entropy",
-        r"\b(?=[A-Za-z0-9+_=-]*[A-Z])(?=[A-Za-z0-9+_=-]*[a-z])(?=[A-Za-z0-9+_=-]*[0-9])"
-        r"[A-Za-z0-9+_=-]{40,}\b",
-        "[REDACTED_TOKEN]",
+        # One pass over the run, then the three character classes are checked in Python. Three
+        # lookaheads in the pattern rescanned the rest of the run from every `\b` inside it
+        # (`-`, `_`, `=` are word boundaries), which is quadratic on a long line of them.
+        r"\b[A-Za-z0-9+_=-]{40,}\b",
+        lambda m: "[REDACTED_TOKEN]" if _mixed_case_and_digits(m.group(0)) else m.group(0),
     ),
 ]
+
+
+def _mixed_case_and_digits(run: str) -> bool:
+    return (
+        any(c.isupper() for c in run)
+        and any(c.islower() for c in run)
+        and any(c.isdigit() for c in run)
+    )
+
 
 # Login names that are everyday words; for these only the home folder is redacted (as in Reflex).
 _COMMON_NAMES = {
@@ -225,9 +256,12 @@ def redact(text: str, profile: Profile = Profile.CONTEXT) -> RedactionResult:
 
         def sub(match: re.Match[str], rule: _Rule = rule) -> str:
             nonlocal count
+            out = rule.replace if isinstance(rule.replace, str) else rule.replace(match)
+            if out == match.group(0):
+                return out  # the rule looked and left it alone
             count += 1
             fired[rule.name] = None
-            return rule.replace if isinstance(rule.replace, str) else rule.replace(match)
+            return out
 
         text = rule.pattern.sub(sub, text)
     return RedactionResult(text, count, tuple(fired))
@@ -403,9 +437,24 @@ _DIFF_HEADER = (
 )
 
 
-def redact_diff(diff: str, profile: Profile = Profile.CONTEXT) -> str:
+DIFF_LIMIT_BYTES = 2 * 1024 * 1024
+
+
+def redact_diff(
+    diff: str, profile: Profile = Profile.CONTEXT, *, limit: int = DIFF_LIMIT_BYTES
+) -> str:
     """A unified diff as a model may see it: secret-bearing files keep keys and structure, never
-    values (as redact_secret_file does for reads); every other file gets `profile` redaction."""
+    values (as redact_secret_file does for reads); every other file gets `profile` redaction.
+
+    A diff over `limit` bytes is cut at a file boundary first: the model gets a bounded view
+    and redaction (which runs on every step) does bounded work."""
+    if len(diff) > limit:
+        cut = diff.rfind("\ndiff --git ", 0, limit)
+        kept, dropped = (
+            (diff[: cut + 1], diff[cut + 1 :]) if cut > 0 else (diff[:limit], diff[limit:])
+        )
+        files = dropped.count("\ndiff --git ") + (1 if dropped.startswith("diff --git ") else 0)
+        diff = kept + f"[diff truncated: {len(dropped)} more bytes in {max(files, 1)} file(s)]\n"
     out: list[str] = []
     for block in re.split(r"(?=^diff --git )", diff, flags=re.M):
         header = re.match(r"diff --git a/(\S+) b/(\S+)", block)
