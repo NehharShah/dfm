@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
+from dfm.cli.common import console
 from dfm.cli.repo_cmd import canon_provider, graph_provider
 from dfm.config import discover_repo_root
 from dfm.integrations.repokg.structure import (
@@ -15,8 +15,6 @@ from dfm.integrations.repokg.structure import (
     roles_from_canon,
     structural_diff,
 )
-
-console = Console()
 
 
 def diff(

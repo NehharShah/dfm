@@ -4,14 +4,13 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
+from dfm.cli.common import console
 from dfm.config import discover_repo_root, state_dirs
 from dfm.sessions import SessionStore
 
 sessions_app = typer.Typer(help="List DFM sessions for this repository.")
-console = Console()
 
 
 @sessions_app.callback(invoke_without_command=True)

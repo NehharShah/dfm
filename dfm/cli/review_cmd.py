@@ -10,21 +10,16 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from dfm.cli.work_cmd import _runtime  # pyright: ignore[reportPrivateUsage]
+from dfm.cli.common import JsonOption, RepoOption, console, make_runtime
 from dfm.config import discover_repo_root
 from dfm.orchestration.review import SEVERITY_ORDER, ReviewReport
 from dfm.orchestration.review import review as run_review
 from dfm.orchestration.runtime import Runtime
 from dfm.orchestration.security_review import security_review as run_security_review
 
-console = Console()
-
 BaseOption = Annotated[str, typer.Option("--base", help="Compare against this ref.")]
 StagedOption = Annotated[bool, typer.Option("--staged", help="Review staged changes only.")]
-RepoOption = Annotated[Path | None, typer.Option("--repo", help="Repository root.")]
-JsonOption = Annotated[bool, typer.Option("--json", help="Machine-readable output.")]
 StdinOption = Annotated[
     bool, typer.Option("--stdin", help="Read the diff from stdin instead of running git.")
 ]
@@ -55,7 +50,7 @@ def _run(
             )
             raise typer.Exit(2)
         diff_text = out.stdout
-    rt = _runtime(ctx, root, request, "review")
+    rt = make_runtime(ctx, root, request, "review")
 
     async def go() -> int:
         try:

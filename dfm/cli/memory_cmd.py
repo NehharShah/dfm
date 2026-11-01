@@ -6,22 +6,18 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
-from dfm.cli.work_cmd import _runtime  # pyright: ignore[reportPrivateUsage]
+from dfm.cli.common import JsonOption, RepoOption, console, make_runtime
 from dfm.config import discover_repo_root
 
 memory_app = typer.Typer(
     help="Reflex practices and skills relevant to this repository (read-only)."
 )
-console = Console()
-RepoOption = Annotated[Path | None, typer.Option("--repo", help="Repository root.")]
-JsonOption = Annotated[bool, typer.Option("--json", help="Machine-readable output.")]
 
 
 def _show(ctx: typer.Context, repo: Path | None, task: str | None, as_json: bool) -> None:
     root = discover_repo_root(repo or Path.cwd())
-    rt = _runtime(ctx, root, task or "memory practices", "memory")
+    rt = make_runtime(ctx, root, task or "memory practices", "memory")
 
     async def go() -> None:
         practices = await rt.reflex.practices(rt.repo, task)
@@ -66,7 +62,7 @@ def skills(
 ) -> None:
     """Approved Reflex skills DFM can use."""
     root = discover_repo_root(repo or Path.cwd())
-    rt = _runtime(ctx, root, "memory skills", "memory")
+    rt = make_runtime(ctx, root, "memory skills", "memory")
     found = rt.reflex.matching_skills(task, limit=10, min_score=1) if task else rt.reflex.skills()
     asyncio.run(rt.close("completed"))
     if not found:

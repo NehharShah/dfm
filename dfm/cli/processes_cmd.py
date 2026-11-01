@@ -4,15 +4,14 @@ import asyncio
 from typing import Annotated
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
+from dfm.cli.common import console
 from dfm.config import state_dirs
 from dfm.processes import NotOwned, ProcessManager, ProcessRegistry, listening_ports
 from dfm.processes.manager import pid_alive
 
 processes_app = typer.Typer(help="List and stop processes DFM started (never anyone else's).")
-console = Console()
 
 
 def _registry() -> ProcessRegistry:

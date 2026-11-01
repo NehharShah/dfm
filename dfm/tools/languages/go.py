@@ -19,7 +19,9 @@ from dfm.tools.languages.base import (
     ToolchainCommands,
     ToolCommand,
     canon_command,
+    fallback_diagnostic,
     language_named,
+    nearest_dir_with,
     runs,
     which_all,
 )
@@ -46,12 +48,7 @@ def module_path(module_dir: Path) -> str | None:
 
 def module_dir(repo: Path, rel_path: str | None) -> str:
     """The nearest directory at or above `rel_path` with a go.mod ("." if none)."""
-    if not rel_path:
-        return "."
-    for parent in [Path(rel_path), *Path(rel_path).parents]:
-        if parent.as_posix() not in {"", "."} and (repo / parent / "go.mod").is_file():
-            return parent.as_posix()
-    return "."
+    return nearest_dir_with(repo, rel_path, "go.mod")
 
 
 def workspace_modules(repo: Path) -> list[str]:
@@ -137,13 +134,7 @@ class GoAdapter:
     def parse_diagnostics(self, result: ProcessResult, tool: str) -> list[Diagnostic]:
         diagnostics = parse_go_diagnostics(result.stdout + "\n" + result.stderr, tool or "go")
         if not diagnostics and result.exit_code not in (0, None):
-            diagnostics.append(
-                Diagnostic(
-                    "error",
-                    (result.stderr or result.stdout).strip()[-500:] or f"{tool} failed",
-                    tool=tool,
-                )
-            )
+            diagnostics.append(fallback_diagnostic(result, tool))
         return diagnostics
 
     def lsp_server(self) -> LspServerSpec | None:

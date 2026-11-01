@@ -6,16 +6,15 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
+from dfm.cli.common import console
 from dfm.config import load_config, state_dirs
 from dfm.config.writer import set_user_value
 from dfm.models.mlx.discovery import ModelCandidate, choose, default_roots, discover, usable
 from dfm.models.resources import ModelResourceManager
 
 models_app = typer.Typer(help="Local MLX coding models: what is here, what fits, which DFM uses.")
-console = Console()
 
 
 def _candidates() -> list[ModelCandidate]:

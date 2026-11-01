@@ -4,13 +4,12 @@ import json
 from typing import Annotated
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
+from dfm.cli.common import console
 from dfm.config import ConfigError, load_config
 from dfm.doctor import Status, as_json, exit_code, run_checks
 
-console = Console()
 _STYLE = {Status.OK: "green", Status.WARN: "yellow", Status.FAIL: "red", Status.SKIP: "dim"}
 
 

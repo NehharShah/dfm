@@ -12,9 +12,10 @@ import functools
 import shlex
 import shutil
 import subprocess
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from dfm.integrations.repocanon import scoped_commands
 from dfm.processes import ProcessResult
@@ -116,6 +117,60 @@ def language_named(canon: Any, name: str) -> bool:
     return any(
         getattr(lang, "name", lang) == name for lang in getattr(canon, "languages", []) or []
     )
+
+
+def read_toml(path: Path) -> dict[str, Any]:
+    """A manifest's tables, or `{}` when it is missing or malformed (an adapter never fails on
+    a broken manifest; it falls back to defaults)."""
+    try:
+        with path.open("rb") as fh:
+            return tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def nearest_dir_with(repo: Path, rel_path: str | None, manifest: str) -> str:
+    """The nearest directory at or above `rel_path` holding `manifest` ("." if none): the
+    package a file belongs to, for `go.mod`, `Scarb.toml`, `Package.swift` and the like."""
+    if not rel_path:
+        return "."
+    for parent in [Path(rel_path), *Path(rel_path).parents]:
+        if parent.as_posix() not in {"", "."} and (repo / parent / manifest).is_file():
+            return parent.as_posix()
+    return "."
+
+
+def toml_workspace_members(repo: Path, manifest: str) -> dict[str, str]:
+    """Package name → directory (relative to the repo) for the root `[package]` and every
+    `[workspace] members` glob, minus `[workspace] exclude`: Cargo.toml and Scarb.toml share
+    this layout."""
+    root = read_toml(repo / manifest)
+    members: dict[str, str] = {}
+    package = cast(dict[str, Any], root.get("package", {}))
+    if "name" in package:
+        members[str(package["name"])] = "."
+    workspace = cast(dict[str, Any], root.get("workspace", {}))
+    excluded = {str(e) for e in cast(list[Any], workspace.get("exclude", []))}
+    for pattern in cast(list[Any], workspace.get("members", [])):
+        for directory in sorted(repo.glob(str(pattern))):
+            rel = directory.relative_to(repo).as_posix()
+            if rel in excluded:
+                continue
+            name = cast(dict[str, Any], read_toml(directory / manifest).get("package", {}))
+            if "name" in name:
+                members[str(name["name"])] = rel
+    return members
+
+
+def fallback_diagnostic(result: ProcessResult, tool: str, *, lines: int = 0) -> Diagnostic:
+    """When a tool failed but nothing parsed: one error carrying its output tail, so the model
+    sees why. `lines` > 0 keeps the last non-blank lines; otherwise the last 500 characters."""
+    text = (result.stderr or result.stdout).strip()
+    if lines:
+        tail = "\n".join([ln for ln in text.splitlines() if ln.strip()][-lines:])
+    else:
+        tail = text[-500:]
+    return Diagnostic("error", tail or f"{tool} failed", tool=tool)
 
 
 @functools.cache

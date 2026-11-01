@@ -15,7 +15,7 @@ from dfm.tools.languages.typescript import package_dir, package_manager
 from dfm.tools.results import FailedTest, parse_test_output
 from dfm.tools.shell.runner import CommandRunner
 from tests import repo_fixtures as fx
-from tests.helpers import DONE, ScriptedCoder, sandboxed_runner
+from tests.helpers import DONE, ScriptedCoder, path_with_tools, sandboxed_runner
 
 FIXTURES = Path(__file__).parent / "fixtures"
 OUTPUTS = FIXTURES / "test_outputs"
@@ -232,8 +232,9 @@ async def test_live_tsc_error_to_file_line(tmp_path: Path) -> None:
 
 @node_only
 async def test_implement_fixes_a_typescript_package(
-    home: Path, git_repo: Path, git: Callable[..., str]
+    home: Path, git_repo: Path, git: Callable[..., str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("PATH", path_with_tools("node", "npm"))
     shutil.copytree(FIXTURES / "node_calc", git_repo, dirs_exist_ok=True)
     git(git_repo, "add", ".")
     git(git_repo, "commit", "-qm", "calc")

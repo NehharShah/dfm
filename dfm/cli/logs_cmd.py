@@ -6,12 +6,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.console import Console
 
+from dfm.cli.common import console
 from dfm.execution.environment import DEFAULT_DENIED_HOME_PATHS
 from dfm.tools.logs import Query, emit_line, inspect, parse_fields, parse_window, tail_lines
-
-console = Console()
 
 
 def inspect_log(

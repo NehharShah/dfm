@@ -6,17 +6,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.console import Console
 
+from dfm.cli.common import JsonOption, RepoOption, console
 from dfm.config import discover_repo_root, load_config, state_dirs
 from dfm.integrations.repocanon import RepoCanonProvider, summary
 from dfm.integrations.repokg import RepoKGProvider, graph_summary, module_for, neighborhood
 
 repo_app = typer.Typer(help="Repository intelligence: RepoCanon facts and the RepoKG graph.")
-console = Console()
-
-RepoOption = Annotated[Path | None, typer.Option("--repo", help="Repository root.")]
-JsonOption = Annotated[bool, typer.Option("--json", help="Machine-readable output.")]
 
 
 def _print_mapping(data: dict[str, Any]) -> None:

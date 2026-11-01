@@ -9,9 +9,8 @@ cargo command goes through CommandRunner and the sandbox like any other build.
 
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from dfm.processes import ProcessResult
 from dfm.tools.languages.base import (
@@ -19,8 +18,10 @@ from dfm.tools.languages.base import (
     ToolchainCommands,
     ToolCommand,
     canon_command,
+    fallback_diagnostic,
     language_named,
     runs,
+    toml_workspace_members,
     which_all,
     with_filter,
 )
@@ -36,32 +37,9 @@ from dfm.tools.results import (
 _RUST_TOOLS = {"cargo", "make", "just"}
 
 
-def _manifest(path: Path) -> dict[str, Any]:
-    try:
-        with path.open("rb") as fh:
-            return tomllib.load(fh)
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
-
-
 def workspace_members(repo: Path) -> dict[str, str]:
     """Crate name → directory (relative to the repo) for every workspace member."""
-    root = _manifest(repo / "Cargo.toml")
-    members: dict[str, str] = {}
-    package = cast(dict[str, Any], root.get("package", {}))
-    if "name" in package:
-        members[str(package["name"])] = "."
-    workspace = cast(dict[str, Any], root.get("workspace", {}))
-    excluded = {str(e) for e in cast(list[Any], workspace.get("exclude", []))}
-    for pattern in cast(list[Any], workspace.get("members", [])):
-        for directory in sorted(repo.glob(str(pattern))):
-            rel = directory.relative_to(repo).as_posix()
-            if rel in excluded:
-                continue
-            name = cast(dict[str, Any], _manifest(directory / "Cargo.toml").get("package", {}))
-            if "name" in name:
-                members[str(name["name"])] = rel
-    return members
+    return toml_workspace_members(repo, "Cargo.toml")
 
 
 def crate_for(repo: Path, rel_path: str) -> str | None:
@@ -141,9 +119,7 @@ class RustAdapter:
         if not diagnostics:
             diagnostics = parse_diagnostics_text(result.stderr, tool or "rustc")
         if not diagnostics and result.exit_code not in (0, None):
-            diagnostics.append(
-                Diagnostic("error", result.stderr.strip()[-500:] or f"{tool} failed", tool=tool)
-            )
+            diagnostics.append(fallback_diagnostic(result, tool))
         return diagnostics
 
     def lsp_server(self) -> LspServerSpec | None:

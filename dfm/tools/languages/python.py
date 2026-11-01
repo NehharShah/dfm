@@ -11,13 +11,19 @@ from __future__ import annotations
 
 import json
 import shutil
-import tomllib
 from pathlib import Path
 from typing import Any, cast
 
 from dfm.integrations.repocanon import scoped_commands
 from dfm.processes import ProcessResult
-from dfm.tools.languages.base import LspServerSpec, ToolchainCommands, ToolCommand, which_all
+from dfm.tools.languages.base import (
+    LspServerSpec,
+    ToolchainCommands,
+    ToolCommand,
+    fallback_diagnostic,
+    read_toml,
+    which_all,
+)
 from dfm.tools.results import (
     Diagnostic,
     FailedTest,
@@ -46,11 +52,7 @@ _RUNNERS = {"uv", "uvx", "poetry", "pdm", "hatch", "pipenv"}
 
 
 def _pyproject(repo: Path) -> dict[str, Any]:
-    try:
-        with (repo / "pyproject.toml").open("rb") as fh:
-            return tomllib.load(fh)
-    except (OSError, tomllib.TOMLDecodeError):
-        return {}
+    return read_toml(repo / "pyproject.toml")
 
 
 def _downloads_node(script: Path) -> bool:
@@ -213,13 +215,7 @@ class PythonAdapter:
             return parse_ruff_json(text)
         diagnostics = parse_diagnostics_text(result.stdout + "\n" + result.stderr, tool)
         if not diagnostics and result.exit_code not in (0, None):
-            diagnostics.append(
-                Diagnostic(
-                    "error",
-                    (result.stderr or result.stdout).strip()[-500:] or f"{tool} failed",
-                    tool=tool,
-                )
-            )
+            diagnostics.append(fallback_diagnostic(result, tool))
         return diagnostics
 
     def lsp_server(self) -> LspServerSpec | None:

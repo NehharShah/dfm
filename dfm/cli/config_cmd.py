@@ -8,12 +8,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from dfm.cli.common import console
 from dfm.config import ConfigError, ConfigOverrides, LoadedConfig, discover_repo_root, load_config
 from dfm.config.loader import flatten
 from dfm.config.paths import state_dirs
 
 config_app = typer.Typer(help="Show the effective configuration and its file locations.")
-console = Console()
 err = Console(stderr=True)
 
 RepoOption = Annotated[

@@ -26,6 +26,7 @@ from dfm.tools.languages.base import (
     ToolchainCommands,
     ToolCommand,
     canon_command,
+    fallback_diagnostic,
     language_named,
     runs,
     which_all,
@@ -250,13 +251,7 @@ class TypeScriptAdapter:
             return parse_eslint_json(result.stdout)
         diagnostics = parse_diagnostics_text(result.stdout + "\n" + result.stderr, tool)
         if not diagnostics and result.exit_code not in (0, None):
-            diagnostics.append(
-                Diagnostic(
-                    "error",
-                    (result.stderr or result.stdout).strip()[-500:] or f"{tool} failed",
-                    tool=tool,
-                )
-            )
+            diagnostics.append(fallback_diagnostic(result, tool))
         return diagnostics
 
     def lsp_server(self) -> LspServerSpec | None:

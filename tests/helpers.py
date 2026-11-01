@@ -74,6 +74,22 @@ class ScriptedCoder:
 # Never the developer's shell PATH: tests must not find the real `gh`, `kubectl` or `cargo`.
 VENV_BIN = str(Path(sys.executable).parent)
 TEST_PATH = f"{VENV_BIN}:/usr/bin:/bin:/usr/sbin:/sbin"
+# the PATH pytest was started with, before any fixture isolated it: where skip guards looked
+ORIGINAL_PATH = os.environ.get("PATH", os.defpath)
+
+
+def path_with_tools(*names: str) -> str:
+    """TEST_PATH plus the directories of the named tools as found on the developer's PATH, for
+    tests that deliberately exercise an installed toolchain (postgres, docker). The test's
+    skip guard found them there; the runtime must see them too, and nothing else."""
+    import shutil
+
+    extra: list[str] = []
+    for name in names:
+        found = shutil.which(name, path=ORIGINAL_PATH)
+        if found and str(Path(found).parent) not in extra:
+            extra.append(str(Path(found).parent))
+    return ":".join([*extra, TEST_PATH])
 
 
 def make_env(
