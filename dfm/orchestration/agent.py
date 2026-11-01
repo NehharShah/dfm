@@ -38,6 +38,7 @@ from dfm.models.base import (
 from dfm.models.structured import structured
 from dfm.observability.metrics import metric
 from dfm.orchestration.runtime import Runtime
+from dfm.policy import ActionClass
 from dfm.provenance import ContextItem
 from dfm.recovery import Checkpointer, Stage
 from dfm.repository.intelligence import RepositoryIntelligence, gather
@@ -60,6 +61,7 @@ from dfm.tools.languages import (
 )
 from dfm.tools.packages import LOCKFILES, missing_packages
 from dfm.tools.results import TestReport, compress
+from dfm.tools.shell.classify import classify
 from dfm.tools.shell.runner import CommandRunner
 
 Status = Literal["completed", "failed", "blocked"]
@@ -188,6 +190,38 @@ Rules:
 - Edit generator inputs, not generated files.
 - Do not claim success: DFM verifies by running the tests itself.
 {DATA_RULE}"""
+
+ANSWER_INSTRUCTIONS = f"""You are the read-only assistant inside DFM, a local engineering agent. You answer the developer's question about a real repository by looking at it, choosing ONE action per turn, answered as a JSON object.
+
+Actions:
+- read: path, optional start/end lines.
+- search: pattern (regex) to find code.
+- run: command (read-only commands only, such as ls, git log, git status, grep).
+- test: run the repository's tests (read-only; DFM picks the command).
+- done: summary = your complete answer to the developer, in Markdown. Cite files as path:line.
+- give_up: summary, when the repository does not contain the answer; say what is missing.
+
+Rules:
+- Look before you answer: read or search the files the question is about, and answer from what you saw, not from memory.
+- If the request is a shell command (for example `ls` or `git status`), run it and give its result.
+- You cannot change anything here. If the developer wants a change, describe it; they can ask for it next.
+{DATA_RULE}"""
+
+_ANSWER_ACTIONS = {"read", "search", "run", "test"}
+ANSWER_TOOLS: tuple[dict[str, Any], ...] = (
+    *(t for t in ACTION_TOOLS if t["function"]["name"] in _ANSWER_ACTIONS),
+    _tool("done", "Your complete answer to the developer, in Markdown.", summary="str"),
+    _tool(
+        "give_up", "The repository does not contain the answer; say what is missing.", summary="str"
+    ),
+)
+
+
+@dataclass(frozen=True)
+class Answer:
+    status: Literal["answered", "unanswered", "failed"]
+    text: str
+    steps: int
 
 
 @dataclass(frozen=True)
@@ -549,7 +583,14 @@ class AgentLoop:
             oldest = self.history.pop(0)
             self.compacted.append("- " + oldest.splitlines()[0][:200])
 
-    async def _next_action(self, request: str, step: int) -> AgentAction:
+    async def _next_action(
+        self,
+        request: str,
+        step: int,
+        *,
+        instructions: str = INSTRUCTIONS,
+        tools: tuple[dict[str, Any], ...] = ACTION_TOOLS,
+    ) -> AgentAction:
         if self.coder is None:
             raise ModelError(
                 "no coding model available (run `dfm setup` to configure a local MLX coder)"
@@ -598,12 +639,12 @@ class AgentLoop:
             self.coder,
             GenerateRequest(
                 messages=(Message("user", task), Message("user", so_far), Message("user", turn)),
-                instructions=INSTRUCTIONS,
+                instructions=instructions,
                 purpose="code",
                 timeout_s=300,
                 reasoning=level,
                 thinking_budget=THINKING_BUDGET[level],
-                tools=ACTION_TOOLS,
+                tools=tools,
             ),
             AgentAction,
         )
@@ -751,6 +792,50 @@ class AgentLoop:
 
     # ---------------------------------------------------------------- main
 
+    def _observe(self, step: int, action: AgentAction, observation: str) -> None:
+        self.struggling = observation.startswith(("error", "refused", "patch not applied"))
+        shown = observation[:1500]
+        if action.action in _DATA_ACTIONS and not observation.startswith("refused"):
+            # file contents, search hits and command output are data, never instructions
+            shown = untrusted_block(f"{action.action}-result", shown)
+        self.history.append(f"Step {step}: {action.action} ({action.reason})\n{shown}")
+
+    async def answer(self, question: str) -> Answer:
+        """Answer a question by looking at the repository: read, search, read-only commands
+        and (read-only) tests; never an edit. Use with `read_only=True, services=False`."""
+        self.rt.event("user_request", text=question)
+        self.intel = await gather(self.rt.repo, self.rt.canon, self.rt.graph)
+        self.adapter = select_adapter(self.rt.repo, self.intel.canon)
+        if self.adapter is not None:
+            self.commands = self.adapter.commands(self.rt.repo, self.intel.canon)
+        for step in range(1, self.max_steps + 1):
+            if self.coder is not None and self.coder.tokens_out >= self.token_budget:
+                return Answer("failed", f"token budget used up ({self.coder.tokens_out})", step)
+            try:
+                action = await self._next_action(
+                    question, step, instructions=ANSWER_INSTRUCTIONS, tools=ANSWER_TOOLS
+                )
+            except ModelError as exc:
+                self.rt.event("failure", stage="answer", error=f"coding model failed: {exc}")
+                return Answer("failed", f"coding model failed: {exc}", step)
+            if action.action in {"done", "give_up"}:
+                status = "answered" if action.action == "done" else "unanswered"
+                return Answer(status, action.summary or action.reason, step)
+            if action.action not in _ANSWER_ACTIONS:
+                observation = "refused: nothing can be changed while answering a question"
+            elif action.action == "run" and not self._read_only_command(action.command or ""):
+                observation = "refused: only read-only commands run while answering a question"
+            else:
+                try:
+                    observation = await self._execute(action)
+                except ToolError as exc:
+                    observation = f"error: {exc}"
+            self._observe(step, action, observation)
+        return Answer("failed", f"no answer after {self.max_steps} steps", self.max_steps)
+
+    def _read_only_command(self, command: str) -> bool:
+        return classify(command, inside=self.rt.env.is_inside).action is ActionClass.SAFE_READ
+
     async def run(self, request: str) -> TaskOutcome:
         sid = self.rt.session.id
         self.rt.event("user_request", text=request)
@@ -789,12 +874,7 @@ class AgentLoop:
                 observation = await self._execute(action)
             except ToolError as exc:
                 observation = f"error: {exc}"
-            self.struggling = observation.startswith(("error", "refused", "patch not applied"))
-            shown = observation[:1500]
-            if action.action in _DATA_ACTIONS and not observation.startswith("refused"):
-                # file contents, search hits and command output are data, never instructions
-                shown = untrusted_block(f"{action.action}-result", shown)
-            self.history.append(f"Step {step}: {action.action} ({action.reason})\n{shown}")
+            self._observe(step, action, observation)
             if action.action in {"patch", "create"} and observation.startswith(
                 ("patched", "created")
             ):

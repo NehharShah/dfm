@@ -14,7 +14,7 @@ from prompt_toolkit.output import DummyOutput
 from rich.console import Console
 
 from dfm.interactive.display import Display
-from dfm.interactive.repl import run
+from dfm.interactive.repl import model_name, run, unsuitable_start
 from dfm.interactive.session import InteractiveSession
 from dfm.models import GenerateRequest, GenerateResult, ModelHealth
 from dfm.orchestration.runtime import Runtime
@@ -307,3 +307,87 @@ async def test_a_failing_listener_never_stops_the_work(home: Path, repo: Path) -
     rt.event("note", text="still recorded")
     await rt.close("completed")
     assert any(e.get("text") == "still recorded" for e in rt.store.load(rt.session.id).events)
+
+
+# ---------------------------------------------------------------- where a session may start
+
+
+def test_home_its_parents_and_the_root_are_not_projects(tmp_path: Path) -> None:
+    home = tmp_path / "Users" / "dev"
+    project = home / "code" / "app"
+    project.mkdir(parents=True)
+    assert unsuitable_start(home, home) is not None
+    assert unsuitable_start(tmp_path / "Users", home) is not None
+    assert unsuitable_start(Path("/"), home) is not None
+    assert unsuitable_start(project, home) is None
+
+
+async def test_a_session_in_the_home_folder_refuses_and_creates_nothing(home: Path) -> None:
+    out = io.StringIO()
+    before = sorted(p.relative_to(home) for p in home.rglob("*"))
+    code = await run(home, console=Console(file=out, width=140))
+    assert code == 2
+    assert "dfm works inside a project" in out.getvalue()
+    assert sorted(p.relative_to(home) for p in home.rglob("*")) == before  # no .dfm, no trace
+
+
+@pytest.mark.usefixtures("mlx_installed")
+def test_banner_names_the_model_not_its_snapshot_hash(tmp_path: Path) -> None:
+    from tests.test_local_models import fake_model_dir
+
+    weights = fake_model_dir(tmp_path / "hub", "mlx-community--Qwen3.8-27B-4bit", gb=0.01)
+    assert weights.name == "abc123"
+    assert model_name(str(weights)) == "mlx-community/Qwen3.8-27B-4bit"
+
+
+# ---------------------------------------------------------------- questions look at the code
+
+
+async def test_a_question_is_answered_by_looking_at_the_repository(home: Path, repo: Path) -> None:
+    coder = ScriptedCoder(
+        {"action": "run", "reason": "list the files", "command": "ls"},
+        {
+            "action": "done",
+            "reason": "answer",
+            "summary": "Top level: `pyproject.toml`, `src/`, `tests/`.",
+        },
+    )
+    session, out = make_session(repo, coder)
+    await session.handle("ls")
+    await session.rt.close("completed")
+    shown = out.getvalue()
+    assert "Run ls" in shown and "Top level:" in shown
+    assert "pyproject.toml" in coder.prompts[1]  # the command really ran; its output was data
+    assert session.turns[0].kind == "question" and session.turns[0].status == "answered"
+    assert (repo / "src/calc/ops.py").read_text() == BUGGY
+
+
+async def test_a_question_never_edits_or_runs_writing_commands(home: Path, repo: Path) -> None:
+    touch = {"action": "run", "reason": "make a file", "command": "touch made.txt"}
+    answer = {"action": "done", "reason": "answer", "summary": "add() subtracts."}
+    coder = ScriptedCoder(FIX, touch, answer)
+    session, _ = make_session(repo, coder)
+    await session.handle("/ask why does test_add fail?")
+    await session.rt.close("completed")
+    assert (repo / "src/calc/ops.py").read_text() == BUGGY
+    assert not (repo / "made.txt").exists()
+    assert "refused: nothing can be changed" in coder.prompts[1]
+    assert "refused: only read-only commands" in coder.prompts[2]
+
+
+# ---------------------------------------------------------------- !command
+
+
+async def test_bang_runs_the_developers_command_under_policy(home: Path, repo: Path) -> None:
+    session, out = make_session(repo, ScriptedCoder(DONE))
+    await session.handle("!ls")
+    await session.handle("!false")
+    await session.handle("!git push")  # a remote write asks; no terminal here, so no
+    await session.handle("!")
+    await session.rt.close("completed")
+    shown = out.getvalue()
+    assert "Run ls" in shown and "pyproject.toml" in shown
+    assert "exit 1" in shown
+    assert "refused by policy" in shown
+    assert "! needs a command" in shown
+    assert [t.status for t in session.turns] == ["ran", "ran", "refused"]

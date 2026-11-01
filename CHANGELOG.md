@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Added
+
+- `!command` in the interactive session runs a command yourself, through the same policy and
+  sandbox as the model's commands.
+
+### Fixed
+
+- Questions in the interactive session (including `ls`) were answered from a repository summary
+  only. The model now looks at the repository to answer: it reads, searches and runs read-only
+  commands, and never edits.
+- `dfm` started a session in the home folder and treated everything under it as the repository.
+  It now refuses the home folder, its parents and `/`, and warns outside a Git repository.
+- The session banner showed the model's Hugging Face snapshot hash instead of its name.
+
 ## [0.0.3] - 2026-10-31
 
 ### Added

@@ -67,9 +67,14 @@ Verified
   tests pass: `pytest` (exit 0)
 ```
 
+Start it inside a project. DFM refuses to start in your home folder, a folder above it, or `/`,
+and warns outside a Git repository.
+
 The local model loads on the first request and stays loaded until it has been idle for ten
-minutes. Requests that change code run the same loop, policy and sandbox as `dfm implement`;
-questions are answered from repository facts and never edit; "review my changes" reviews the
+minutes. Requests that change code run the same loop, policy and sandbox as `dfm implement`.
+Questions, including commands such as `ls` or `git log`, are answered by the model looking at
+the repository: it reads files, searches and runs read-only commands, and never edits. Without
+a local model, questions are answered from repository facts. "Review my changes" reviews the
 working-tree diff. Earlier requests in the session are context for later ones, and DFM can keep
 editing files it changed earlier. Once you edit such a file yourself, it is protected again.
 
@@ -79,6 +84,7 @@ editing files it changed earlier. Once you edit such a file yourself, it is prot
 | `/undo` | revert the files DFM changed in its latest request (files you changed since are kept) |
 | `/plan <task>` | plan without editing |
 | `/review` | review the working-tree diff |
+| `!<command>` | run a command yourself; policy and the sandbox apply, interactive programs do not work |
 | `/ask <question>`, `/do <task>` | force a read-only answer, or the agent loop |
 | `/status`, `/clear`, `/help`, `/exit` | session state; forget earlier requests; commands; end |
 

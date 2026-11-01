@@ -98,6 +98,24 @@ class Display:
     def detail(self, text: str, style: str = "dim") -> None:
         self.line(Text("  ⎿ ", style="dim") + Text(text, style=style))
 
+    def user_command(self, command: str) -> None:
+        """`!command`: shown like the model's `run`, so its events render the same way."""
+        self.step("Run", command)
+        self._acted = True
+        self._last_action = "user"  # its output and exit status are shown by the session
+
+    def output(self, lines: list[str], limit: int, exit_code: int | None) -> None:
+        self.stop()
+        hidden = max(0, len(lines) - limit)
+        if hidden:
+            self.note(f"    ({hidden} earlier lines not shown)")
+        for raw in lines[-limit:] if hidden else lines:
+            self.line("    " + raw)
+        if exit_code is None:
+            self.detail("stopped before it exited", "red")
+        elif exit_code != 0:
+            self.detail(f"exit {exit_code}", "red")
+
     # ---------------------------------------------------------------- runtime events
 
     def event(self, event_type: str, payload: dict[str, Any]) -> None:
@@ -146,7 +164,7 @@ class Display:
         if self._in_tests:
             return
         command = " ".join(p.get("argv", []))
-        if self._last_action != "run":  # DFM's own commands (services, installs)
+        if self._last_action not in {"run", "user"}:  # DFM's own (services, installs)
             self.stop()
             self.detail("$ " + _one_line(command, 110))
         self.working("Running " + _one_line(command, 60))
