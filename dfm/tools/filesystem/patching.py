@@ -196,6 +196,10 @@ def parse_unified(text: str) -> list[FileDiff]:
                     i += 1
                     continue
                 old_start = int(match.group(1))
+                if match.group(2) == "0":
+                    # `@@ -N,0 +M,k @@` (diff -U0): N is the line the insertion follows, not
+                    # the first line of the hunk, so the hunk starts at N+1
+                    old_start += 1
                 old: list[str] = []
                 new: list[str] = []
                 i += 1

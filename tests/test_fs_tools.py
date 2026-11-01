@@ -107,6 +107,18 @@ def test_unified_diff_with_offset() -> None:
     assert any("offset" in n for n in out.notes)
 
 
+def test_zero_context_hunks_insert_after_the_named_line() -> None:
+    """`diff -U0` writes `@@ -N,0 +M,k @@`: N is the line the insertion follows."""
+    source = "l1\nl2\nl3\nl4\nl5\n"
+    after_three = "--- a/f\n+++ b/f\n@@ -3,0 +4 @@\n+INSERTED\n"
+    out = apply_hunks(source, parse_unified(after_three)[0].hunks)
+    assert out.text == "l1\nl2\nl3\nINSERTED\nl4\nl5\n"
+    at_top = "--- a/f\n+++ b/f\n@@ -0,0 +1,2 @@\n+a\n+b\n"
+    assert apply_hunks(source, parse_unified(at_top)[0].hunks).text == "a\nb\n" + source
+    two = "--- a/f\n+++ b/f\n@@ -1,0 +2 @@\n+X\n@@ -4,0 +6 @@\n+Y\n"
+    assert apply_hunks(source, parse_unified(two)[0].hunks).text == "l1\nX\nl2\nl3\nl4\nY\nl5\n"
+
+
 def test_unified_diff_conflict() -> None:
     diff = "--- a/x\n+++ b/x\n@@ -1,1 +1,1 @@\n-nothing like this\n+x\n"
     with pytest.raises(PatchConflict, match="context not found"):

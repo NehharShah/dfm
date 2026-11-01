@@ -141,11 +141,18 @@ class Checkpointer:
         return index[rel_path]
 
     def original_content(self, rel_path: str) -> bytes | None:
+        """The bytes recorded before DFM's first edit, or None when only the hash was kept or
+        the blob no longer matches it. The sandbox denies repository code writes under
+        `.dfm/`; this check is the second line, so a blob that was rewritten anyway is never
+        restored as "the original"."""
         digest = self._originals_index().get(rel_path)
         if digest is None:
             return None
         blob = self.originals_dir / digest
-        return blob.read_bytes() if blob.exists() else None
+        if not blob.exists():
+            return None
+        data = blob.read_bytes()
+        return data if _sha(data) == digest else None
 
     def undo(self, left: dict[str, str | None]) -> "UndoResult":
         """Put every file DFM edited under this id back as it was before DFM's first edit.
@@ -174,7 +181,12 @@ class Checkpointer:
                 continue
             data = self.original_content(rel_path)
             if data is None:
-                result.skipped.append(f"{rel_path}: only its hash was kept (secret file)")
+                why = (
+                    "only its hash was kept (secret file)"
+                    if is_secret_path(rel_path)
+                    else "its recorded original is missing or does not match its hash"
+                )
+                result.skipped.append(f"{rel_path}: {why}")
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
