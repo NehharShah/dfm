@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Changed
+
+- `mlx-lm` is installed with DFM on Apple Silicon with Python 3.12 to 3.14, so `pipx install
+  dfm-agent` or `uv tool install dfm-agent` gives a DFM that can edit code. The `[mlx]` extra
+  still works and installs nothing more. On Python 3.15 `mlx-lm` cannot install yet (its
+  dependency `sentencepiece` has no 3.15 build), so DFM installs without it; the docs install on
+  Python 3.14.
+
+### Fixed
+
+- `dfm setup` and `dfm doctor` printed `uv tool install 'dfm-agent[mlx]'` as
+  `uv tool install 'dfm-agent'`: the `[mlx]` was read as a style tag.
+- Without `mlx-lm`, `dfm setup` reported "no usable local MLX model fits (found: none)" and said
+  to download a model, even with one downloaded. It now lists the models it found and says
+  `mlx-lm` is what is missing, with the command for the reason it is missing.
+
 ## [0.0.5] - 2026-11-01
 
 Fixes from a full review of `main` (threat T16 and ADR 0009 amended). Configuration keys

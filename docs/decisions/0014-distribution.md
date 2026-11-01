@@ -35,3 +35,21 @@ whose cache classes and `stream_generate` the worker uses directly, and CI never
 extra, so a breaking minor would otherwise surface only on user machines; the bound is raised
 after `pytest -m mlx` against the new series. CI's matrix is 3.12, 3.14 and 3.15. The README and
 guide lead with `uv tool install "dfm-agent[mlx]"`; the checkout path is for development.
+
+Addendum (2026-11-01, first PyPI install of 0.0.5): `pipx install dfm-agent` (no extra) gave a
+DFM that could not edit code, and `dfm setup` printed the fix as `uv tool install 'dfm-agent'`
+because Rich read `[mlx]` as a style tag. With the extra, pipx on Python 3.15 failed to build
+`sentencepiece`, which mlx-lm needs and which has no 3.15 wheel. Changes:
+
+- **mlx-lm is a dependency**, with the marker `sys_platform == 'darwin' and platform_machine ==
+  'arm64' and python_version < '3.15'`. A plain `dfm-agent` install is the working one; on other
+  platforms and on 3.15 the install still succeeds, without the local coder. The `mlx` extra
+  stays, empty, so `dfm-agent[mlx]` keeps resolving. The 3.15 marker comes off once
+  sentencepiece publishes a 3.15 wheel.
+- **The install docs pin Python 3.14** (`uv tool install --python 3.14 dfm-agent`), because
+  `pipx` and `uv tool` otherwise use the newest Python they find.
+- **`dfm setup` and `dfm doctor` say why mlx-lm is missing** (old install, Python 3.15, not Apple
+  Silicon) with the command that fixes it, print their text without Rich markup, and list the
+  MLX models found instead of "found: none".
+- CI's 3.12 and 3.14 legs now install mlx-lm (macOS 15 runners are Apple Silicon); the 3.15 leg
+  covers the install without it.
