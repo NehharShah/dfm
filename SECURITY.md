@@ -23,9 +23,11 @@ Please allow a reasonable time for a fix before you disclose publicly.
 
 ## In scope
 
-- A command that runs without the approval its policy requires.
+- A command that runs without the approval its policy requires, including one the classifier
+  reads as safe and the shell then runs as something else (see threat T16).
 - Reading protected paths, writing outside allowed paths, or reaching the network from inside
   the sandbox without approval.
+- A repository's `.dfm/config.toml` changing a setting it is not allowed to.
 - Secrets reaching model context, session traces, logs or approval prompts.
 - Repository content, issues, CI logs or tool output changing DFM's policy or configuration.
 - DFM overwriting uncommitted work, pushing, or rewriting history without being asked.
@@ -40,4 +42,5 @@ Please allow a reasonable time for a fix before you disclose publicly.
 
 ## Supported versions
 
-Only the latest commit on `main` receives security fixes while DFM is at 0.x.
+While DFM is at 0.x, security fixes land on `main` and ship in the next `dfm-agent` release
+on PyPI; earlier releases are not patched. Upgrade with `uv tool upgrade dfm-agent`.

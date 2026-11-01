@@ -63,3 +63,8 @@ questions went to `ask`, which sees only the repository summary. Changes:
 - **Model name.** The banner shows `org/model` from the Hugging Face cache path, not the
   snapshot hash.
 
+Addendum (2026-10-31): interruption now reaches the model. Cancelling the request task cancels
+the in-flight `generate`, which sends the worker a `cancel` message; the worker stops after its
+current token and stays loaded (ADR 0013). Only `CancelledError`/`KeyboardInterrupt` record a
+turn as `interrupted`; any other exception fails the turn, is shown, and the session continues.
+Services the task started are released by the agent loop however the task ends.

@@ -1,6 +1,7 @@
 # dfm — Developer Foundation Model
 
 [![CI](https://github.com/NehharShah/dfm/actions/workflows/ci.yml/badge.svg)](https://github.com/NehharShah/dfm/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/dfm-agent.svg)](https://pypi.org/project/dfm-agent/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: macOS on Apple Silicon](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-lightgrey)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
@@ -18,23 +19,31 @@ is off or requires approval, per [policy](docs/policy.md).
 
 ## Requirements
 
-- macOS on Apple Silicon, Python 3.12+, [uv](https://docs.astral.sh/uv/), Git.
+- macOS on Apple Silicon, Python 3.12 to 3.15, Git, and [uv](https://docs.astral.sh/uv/) or
+  [pipx](https://pipx.pypa.io/) to install the command.
 - Memory for the local model: the recommended 27B model (4-bit) needs about 18.5 GB at its
   default context, so 32 GB or more is recommended. `dfm setup` picks a model that fits.
 - Optional: Apple Intelligence, for Apple FM.
 
-## Quick start
+## Install
+
+DFM is published on PyPI as [`dfm-agent`](https://pypi.org/project/dfm-agent/); the command and
+the import package are `dfm`.
 
 ```bash
-git clone https://github.com/NehharShah/dfm && cd dfm
-uv sync --extra mlx
-uv run dfm doctor                          # check this machine
-uv run dfm setup                           # choose a local model
-uv run dfm                                 # interactive session in this repository
+uv tool install "dfm-agent[mlx]"           # or: pipx install "dfm-agent[mlx]"
+dfm doctor                                 # check this machine: models, tools, policy
+dfm setup                                  # choose a local model that fits in memory
+cd your-project && dfm                     # interactive session in that repository
 ```
 
-Or install it as a command from PyPI: `uv tool install "dfm-agent[mlx]"` (the `[mlx]` extra is
-the local coding model; without it DFM answers questions but cannot edit code).
+The `[mlx]` extra installs `mlx-lm`, which runs the local coding model. Without it DFM answers
+questions from repository facts but cannot edit code. DFM does not download model weights;
+`dfm setup` picks from models already in your Hugging Face cache (the [guide](docs/guide.md)
+shows how to fetch one). Upgrade with `uv tool upgrade dfm-agent`.
+
+To work on DFM itself, clone the repository and use `uv sync --extra mlx` and `uv run dfm …`
+([CONTRIBUTING.md](CONTRIBUTING.md)).
 
 `dfm` in a repository starts an interactive session: type what you want done, watch each step
 run, and `/undo` the last request if you don't want it. Single commands such as
@@ -44,13 +53,16 @@ run, and `/undo` the last request if you don't want it. Single commands such as
 
 - The model proposes one action at a time (read, search, patch, run, test). DFM executes it,
   reruns the tests after every edit, and reports only what a command verified.
-- Every command is classified and checked against policy, then runs in a per-command macOS
-  sandbox. Destructive, production and mainnet actions require a typed confirmation. DFM does
-  not commit, push or rewrite history.
+- Every command is classified with shell semantics and checked against policy before it runs;
+  anything the classifier cannot vouch for (`python -c`, an unfamiliar tool, a `PATH=` prefix,
+  shell quoting it cannot see through) asks you first. Repository code runs in a per-command
+  macOS sandbox that cannot read your keys, shell history or DFM's own state. Destructive,
+  production and mainnet actions require a typed confirmation. DFM does not commit, push or
+  rewrite history.
 - Repository files, issues and CI logs reach the model as untrusted data, with secrets
-  redacted.
+  redacted. A repository's own `.dfm/config.toml` can tighten DFM's policy, never loosen it.
 - Memory checks, thermal pacing, reasoning budgets and a persistent prompt cache keep the model
-  usable alongside other apps.
+  usable alongside other apps. Ctrl-C stops the model within a token and keeps it loaded.
 
 Modes: `ask`, `plan`, `implement`, `review`, `security-review`, `ci`, `fix-pr`,
 `implement-issue`, `benchmark`. Full list: [command reference](docs/cli.md).

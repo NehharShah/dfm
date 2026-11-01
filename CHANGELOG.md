@@ -40,6 +40,12 @@ Fixes from a full review of `main` (threat T16 and ADR 0009 amended).
 - `dfm doctor` no longer crashes when `$HOME` is missing; install remedies name the PyPI extra.
 - Stale per-session temp directories (from killed sessions) are swept after a day.
 
+### Changed
+
+- README, guide and troubleshooting lead with the PyPI install (`uv tool install
+  "dfm-agent[mlx]"`); the checkout is for development. Every document describes the code as it
+  is after this release's fixes (ADRs 0009, 0010, 0012, 0013, 0014 and 0015 carry addenda).
+
 ### Removed
 
 - Config keys nothing read: `integrations.*.required`, `repokg.incremental`,

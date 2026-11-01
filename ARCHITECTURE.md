@@ -111,11 +111,14 @@ reported as `failed`, with the reason.
 manager, policy engine, session store, model pool, router and integration providers.
 
 Configuration layers, in order: defaults, `~/.config/dfm/config.toml` (developer),
-`<repo>/.dfm/config.toml` (untrusted: may only tighten policy and may not select models), CLI
-flags. Reference: [docs/config.md](docs/config.md).
+`<repo>/.dfm/config.toml` (untrusted, an allowlist: it may tighten `network.*`, turn integrations
+and standing worktree consent off, and lower `limits.*`; everything else, including `models`, is
+refused with a warning), CLI flags. Reference: [docs/config.md](docs/config.md),
+[ADR 0009](docs/decisions/0009-config-layers.md).
 
 The execution environment defines the working directory, the filesystem boundary, a scrubbed
-child environment (allowlisted variables, secrets removed), the network mode and resource
+child environment (allowlisted variables, secrets removed, `core.fsmonitor=false` for every git
+process), the network mode and resource
 limits. The boundary covers the repository, DFM's state directories and approved paths. Key
 stores, cloud credentials and browser profiles are always excluded.
 
@@ -222,13 +225,18 @@ flowchart LR
 ```
 
 - **Classification.** Commands are parsed with shell semantics (pipes, redirects, `&&`,
-  `bash -c`, `env -S`). Each part is classified by a per-tool rule into an action class, from
-  `SAFE_READ` to `PRIVILEGED` and `UNKNOWN`. Rules account for options that execute code (`rg
-  --pre`, `sed e`, `git -c core.fsmonitor=…`, `tar -I`), every remote target (URLs, database
-  hosts, connection strings), and Kubernetes contexts and chain targets from flags and
-  environment. Commands with shell operators run through `/bin/sh`, matching how they were
-  classified. A compound command takes the class of its most dangerous part. `UNKNOWN` is never
-  treated as safe.
+  newlines, `bash -c`, `env -S`). Each part is classified by a per-tool rule into an action
+  class, from `SAFE_READ` to `PRIVILEGED` and `UNKNOWN`. Rules account for options that execute
+  code (`rg --pre`, `sed e` wherever the script sits, multi-line `awk`, `git -c
+  core.fsmonitor=…`, `tar -I`), abbreviated git long options, SQL with its comments stripped,
+  every remote target (URLs, database hosts, connection strings), and Kubernetes contexts and
+  chain targets from flags and environment. Whatever the shell would reinterpret after
+  classification is `UNKNOWN`: builtins that change command resolution (`alias`, `hash`,
+  `export`, `set`), `VAR=value` prefixes outside a short benign list (their values are
+  boundary-checked and shown to the approver), `$'…'` and brace expansion, a bare `cd`.
+  Commands with shell operators run through `/bin/sh`, matching how they were classified. A
+  compound command takes the class of its most dangerous part, and the approver sees the whole
+  line. `UNKNOWN` is never treated as safe (threat T16).
 - **Policy.** Each action class and network category maps to allow, ask or deny. Destructive,
   privileged, production-cluster and mainnet actions require a typed confirmation of the target.
   Without a terminal, ask means deny. Actions proposed from untrusted output (for example a
@@ -316,11 +324,12 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 ## Package layout (`dfm/`)
 
 ```text
-cli/            Typer commands
+cli/            Typer commands (shared scaffolding in cli/common.py)
 orchestration/  runtime, agent loop, modes (ask, plan, implement, review, ci, github, resume)
 routing/        routes and router
-models/         Model protocol, pool, structured output, apple/, mlx/ (worker, discovery,
-                output translation), resources (memory admission), thermal
+models/         Model protocol, pool, structured output, apple/, mlx/ (worker with cancel
+                and KV snapshots, discovery, output translation), resources (memory
+                admission), thermal
 context/        context engine and budgets
 provenance/     context items and provenance
 repository/     repository intelligence and freshness
@@ -328,7 +337,7 @@ integrations/   repocanon/, repokg/, reflex/, github/
 tools/          filesystem/, git/, shell/ (classifier, rules, runner), languages/, docker/,
                 kubernetes/, blockchain/, packages, logs
 lsp/            language server client (built and tested; not yet wired into the context engine)
-execution/      execution environment and filesystem boundary
+execution/      execution environment, filesystem boundary, git hardening
 processes/      process manager and registry
 services/       local service lifecycle
 policy/         action classes, network categories, decisions, approvals

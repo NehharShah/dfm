@@ -29,3 +29,9 @@ the PyPI project's trusted publisher once (owner `NehharShah`, repository `dfm`,
 `release.yml`, environment `pypi`). Users who also have the unrelated `dfm` package installed
 get a command-name clash; `uv tool` keeps each tool in its own environment, so only the shim
 on `PATH` collides.
+
+Addendum (2026-10-31): `mlx-lm` carries an upper bound (`>=0.32.2,<0.33`). It is a 0.x project
+whose cache classes and `stream_generate` the worker uses directly, and CI never installs the
+extra, so a breaking minor would otherwise surface only on user machines; the bound is raised
+after `pytest -m mlx` against the new series. CI's matrix is 3.12, 3.14 and 3.15. The README and
+guide lead with `uv tool install "dfm-agent[mlx]"`; the checkout path is for development.

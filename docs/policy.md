@@ -3,7 +3,9 @@
 Every action (shell command, file write, network use, model call) is classified and then
 decided by policy: **allow**, **ask** (you confirm) or **deny**. The same rules apply whether
 you, DFM or the model proposed the action. Without an interactive terminal, ask means deny. A
-repository's own configuration can only make these rules stricter.
+repository's own configuration (`.dfm/config.toml`) is an allowlist: it can tighten network
+rules, turn integrations and standing worktree consent off, and lower limits; anything else it
+sets is ignored with a warning.
 
 ## Action classes
 
@@ -21,7 +23,12 @@ repository's own configuration can only make these rules stricter.
 | DESTRUCTIVE | `git reset --hard`, `git clean -fd`, `docker system prune` | typed confirmation |
 | DESTRUCTIVE_REMOTE_WRITE | `git push --force`, `kubectl delete`, remote `DROP TABLE` | typed confirmation |
 | PRIVILEGED | `sudo`, key material on the command line, privileged containers, `kubectl config view --raw` | typed confirmation |
-| UNKNOWN | anything without a rule (`python -c …`, binaries run by path) | ask |
+| UNKNOWN | anything without a rule (`python -c …`, binaries run by path), and anything the shell would reinterpret after classification: `alias`/`export`/`hash`/`set`, a `VAR=value` prefix outside a short benign list, `$'…'` or `{a,b}` quoting, a bare `cd`, `sed`/`awk` scripts that can run programs | ask |
+
+Commands are classified the way `/bin/sh` will run them: pipes, redirects, `&&`, newlines,
+wrappers (`env`, `timeout`, `xargs`, `sh -c`, `uv run`), abbreviated git long options
+(`--har` is `--hard`) and SQL with comments stripped. A compound command is as dangerous as its
+most dangerous part, and the confirmation shows the whole line, not only the part that asked.
 
 A **typed confirmation** requires entering the target (kube context, chain, path), not "y".
 Session-wide approval is available only for normal confirmations and does not carry over to
@@ -60,7 +67,9 @@ model provider, so `remote_inference` cannot be enabled in practice.
 - **Docker.** DFM labels what it creates (`dfm.session`) and namespaces Compose projects
   (`dfm-<session>`). Cleaning up those is allowed; anything broader is destructive.
 - **Git.** DFM does not commit, push, reset, rewrite history or delete branches on its own.
-  Uncommitted work is protected. Large tasks can run in a worktree.
+  Uncommitted work is protected. Large tasks can run in a worktree. Every git process DFM
+  starts, its own or a model's, runs with `core.fsmonitor=false`, so a repository's Git
+  configuration cannot execute code when status is read.
 - **CI fixes.** Edits that skip or xfail tests, or that stop a workflow step from failing, are
   refused.
 - **Generated files.** Changed through their source and the generator, unless you pass
@@ -68,10 +77,15 @@ model provider, so `remote_inference` cannot be enabled in practice.
 
 ## Sandbox and boundaries
 
-Commands run under macOS `sandbox-exec`. Writes are limited to the repository, DFM's temp
-directory and toolchain caches. Reads of `~/.ssh`, cloud credentials, keychains and browser
-profiles are denied. Network is denied unless the command's category was allowed. Filesystem
-tools resolve symlinks and refuse paths outside the repository. Child processes receive an
+Repository code (tests, builds, anything a model proposes) runs under macOS `sandbox-exec`.
+Writes are limited to the repository, DFM's temp directory and toolchain caches, and never
+reach `<repo>/.dfm` (checkpoint originals, repository policy), the persisted prompt cache,
+DFM's own interpreter, Git hooks or Git config. Reads of `~/.ssh`, cloud credentials,
+keychains, browser profiles, shell startup files and histories, other coding agents' state,
+and DFM's own policy, traces, logs and caches are denied. Network is denied unless every part
+of the command was allowed for a network category; read-only tools that can start programs
+(`sed`, `awk`, `less`, `find`, `git`) never ride on another part's approval. Filesystem tools
+resolve symlinks and refuse paths outside the repository. Child processes receive an
 environment without tokens, keys, passwords or credentialed URLs.
 
 Model input is redacted. Repository content, issue text, CI logs and tool output are passed as

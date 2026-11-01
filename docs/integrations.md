@@ -61,15 +61,21 @@ present and otherwise wraps `repokg.cli.build_graph` in `RepoKGProvider`.
 
 DFM does not import Reflex. It runs the read-only CLI as a subprocess under the same policy as
 any command: `reflex handbook --json`, `reflex handbook ask "<question>" --json`, and approved
-skills under `~/.reflex/skills/`. Each question is asked once per session.
+skills under `~/.reflex/skills/`. Each question is asked once per session. Configuration:
+`integrations.reflex.enabled`, `use_handbook`, `use_skills` and `session_export`
+([config](config.md)); a repository may turn any of them off, never on.
 
-DFM writes JSONL session traces to `~/.local/share/dfm/sessions/`
-([schema](protocol/dfm-session-v1.schema.json)), which Reflex can read.
+With `session_export` on, DFM writes JSONL session traces to `~/.local/share/dfm/sessions/`
+([schema](protocol/dfm-session-v1.schema.json)), which Reflex can read; with it off they go to
+a `private/` subdirectory Reflex never scans.
 
 ## Local MLX models
 
-Loaded with `mlx-lm` (the `mlx` extra) from the Hugging Face cache. DFM does not download
-models. See the [guide](guide.md).
+Loaded with `mlx-lm` (the `mlx` extra of `dfm-agent`, pinned to one minor series) from the
+Hugging Face cache, `~/.local/share/dfm/models/` or LM Studio's folders. DFM does not download
+models. The worker runs sandboxed and offline (`HF_HUB_OFFLINE=1`); the protocol between DFM
+and the worker, including cancellation, is described in [architecture](architecture.md). See
+the [guide](guide.md) for setup.
 
 ## Known upstream issues
 

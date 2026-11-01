@@ -12,8 +12,9 @@ Decision:
   data directories (except the session temp directory), `.git/config`, `config.worktree` or
   `hooks/`, including in submodules and linked worktrees. A wrapped command gets network access
   only if every part that runs code was approved for a network category.
-- **Git.** DFM's own Git processes run with `core.fsmonitor=false`
-  (`dfm/tools/git/hardening.py`, set at CLI start and in `Runtime.create`).
+- **Git.** Every git process DFM starts runs with `core.fsmonitor=false`
+  (`dfm/execution/git_hardening.py`, applied by `ExecutionEnvironment.child_env`, so DFM's own
+  git and model-proposed git get it alike; `dfm/tools/git/hardening.py` re-exports it).
 - **Shell execution.** Commands with operators or redirects run through `/bin/sh -c`, so
   execution matches the shell semantics used for classification. String commands are
   classified as strings.
@@ -39,3 +40,15 @@ Process start times come from the kernel (`proc_pidinfo`, in the format of `ps -
 Plan mode runs repository tests only when a read-only sandbox can be applied, and otherwise
 reports them as not run. Reflex is asked each question once per session rather than at every
 step.
+
+Addendum (2026-10-31, second review, threat T16): the classifier trusted several things the
+shell reinterprets after classification. Builtins that change command resolution (`alias`,
+`hash`, `export`, `set`, `unset`) and a bare `cd` are `UNKNOWN`; `VAR=value` prefixes are kept
+on the part, boundary-checked and `UNKNOWN` unless the variable is on a short benign list
+(`PATH=`, `GIT_*`, `*_CONFIG_PATH` can make a read run something else); ANSI-C and brace
+quoting floor a command to `UNKNOWN`; `sed` reads its script wherever the options put it and
+checks `e`/`w` before `-i`; `awk` matches across lines; git long-option abbreviations are
+expanded before matching; SQL comments are stripped before the `WHERE` check; `git rm -r` is
+`LOCAL_DESTRUCTIVE`. The approval prompt shows the whole command line under the part that asked.
+The git-config environment hardening above was not reaching children (the allowlist dropped
+`GIT_CONFIG_*`); it is now injected in `child_env`.
