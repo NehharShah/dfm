@@ -25,8 +25,16 @@ bound raised here. To develop against local checkouts: `uv pip install -e ../rep
 
 ## Releasing
 
-Only the maintainer publishes. Bump `version` in `pyproject.toml`, move the `[Unreleased]`
-section of `CHANGELOG.md` under the new version, commit, then tag `vX.Y.Z` and push the tag.
+Only the maintainer publishes, and nothing is pushed to `main` directly, releases included.
+A release is its own pull request:
+
+1. Branch `release/X.Y.Z` from `main`. Bump `version` in `pyproject.toml`, run `uv lock`, move
+   the `[Unreleased]` section of `CHANGELOG.md` under `## [X.Y.Z] - <date>`, commit.
+2. Open the PR (`Release X.Y.Z: <one line>`), let CI pass, merge it.
+3. On the merged `main` commit, tag `vX.Y.Z` and push the tag. Nothing else is pushed.
+
+The tag is the only thing that is pushed outside a PR. A tag whose version does not match
+`pyproject.toml` fails the release workflow.
 `.github/workflows/release.yml` builds the sdist and wheel, checks them, smoke-installs the
 wheel and publishes `dfm-agent` to PyPI through trusted publishing (no stored token).
 
