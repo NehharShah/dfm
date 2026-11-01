@@ -63,6 +63,7 @@ class LocalModelSpec:
 
 THERMAL_WAIT_S = 120.0
 THERMAL_POLL_S = 5.0
+CANCEL_GRACE_S = 5.0  # a cancelled worker has this long to answer before it is killed
 
 
 def mlx_available() -> bool:
@@ -144,6 +145,53 @@ class MLXModel:
         self._loaded = False
         return self._proc
 
+    async def _write(self, proc: asyncio.subprocess.Process, message: dict[str, Any]) -> None:
+        assert proc.stdin is not None  # noqa: S101
+        proc.stdin.write((json.dumps(message) + "\n").encode())
+        try:
+            await proc.stdin.drain()
+        except (ConnectionError, BrokenPipeError) as exc:
+            raise ModelUnavailable(f"{self.name} worker exited") from exc
+
+    async def _read_reply(
+        self, proc: asyncio.subprocess.Process, request_id: int, on_chunk: Any = None
+    ) -> dict[str, Any]:
+        """The final reply to `request_id`; chunks go to `on_chunk`, other ids are skipped."""
+        assert proc.stdout is not None  # noqa: S101
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                raise ModelUnavailable(
+                    f"{self.name} worker exited (exit {proc.returncode}); likely out of memory"
+                )
+            try:
+                message = cast(dict[str, Any], json.loads(line))
+            except ValueError:
+                # a library printing to stdout, or a line cut short by a crash (EOF follows and
+                # is reported as the worker exiting); either way not a protocol message
+                continue
+            if message.get("id") != request_id:
+                continue
+            if "chunk" in message:
+                if on_chunk is not None:
+                    await on_chunk(str(message["chunk"]))
+                continue
+            return message
+
+    async def _interrupt(self, proc: asyncio.subprocess.Process, request_id: int) -> None:
+        """Stop request `request_id` in the worker and keep the worker (and its loaded weights)
+        if it answers within CANCEL_GRACE_S; otherwise it is stuck and gets killed."""
+        if proc.returncode is not None:
+            return
+        try:
+            await asyncio.wait_for(self._cancel_and_drain(proc, request_id), CANCEL_GRACE_S)
+        except (TimeoutError, ModelError):
+            await self._kill()
+
+    async def _cancel_and_drain(self, proc: asyncio.subprocess.Process, request_id: int) -> None:
+        await self._write(proc, {"op": "cancel", "target": request_id})
+        await self._read_reply(proc, request_id)  # its answer, with stop_reason "cancelled"
+
     async def _call(
         self, op: str, timeout: float, on_chunk: Any = None, **params: Any
     ) -> dict[str, Any]:
@@ -152,34 +200,23 @@ class MLXModel:
             raise ModelUnavailable("worker pipes missing")
         self._next_id += 1
         request_id = self._next_id
-        proc.stdin.write((json.dumps({"id": request_id, "op": op, **params}) + "\n").encode())
-        try:
-            await proc.stdin.drain()
-        except (ConnectionError, BrokenPipeError) as exc:
-            raise ModelUnavailable(f"{self.name} worker exited") from exc
 
-        async def read_reply() -> dict[str, Any]:
-            assert proc.stdout is not None  # noqa: S101
-            while True:
-                line = await proc.stdout.readline()
-                if not line:
-                    raise ModelUnavailable(
-                        f"{self.name} worker exited (exit {proc.returncode}); likely out of memory"
-                    )
-                message = cast(dict[str, Any], json.loads(line))
-                if message.get("id") != request_id:
-                    continue
-                if "chunk" in message:
-                    if on_chunk is not None:
-                        await on_chunk(str(message["chunk"]))
-                    continue
-                return message
+        async def exchange() -> dict[str, Any]:
+            # the write is inside the timeout too: a request larger than the pipe buffer to a
+            # worker that is not reading would otherwise block here with no limit at all
+            await self._write(proc, {"id": request_id, "op": op, **params})
+            return await self._read_reply(proc, request_id, on_chunk)
 
         try:
-            reply = await asyncio.wait_for(read_reply(), timeout)
+            reply = await asyncio.wait_for(exchange(), timeout)
         except TimeoutError as exc:
-            await self._kill()
+            await self._interrupt(proc, request_id)
             raise ModelTimeout(f"{self.name}: {op} took longer than {timeout}s") from exc
+        except asyncio.CancelledError:
+            # Ctrl-C in the REPL, or a consumer that stopped streaming: the worker must stop
+            # generating too, or it burns the GPU to max_tokens and the next request queues
+            await asyncio.shield(self._interrupt(proc, request_id))
+            raise
         if not reply.get("ok", False):
             kind = reply.get("kind")
             error = str(reply.get("error", "worker error"))
@@ -239,18 +276,22 @@ class MLXModel:
     async def _idle_watch(self) -> None:
         while self.loaded:
             await asyncio.sleep(min(30.0, self.idle_unload_s))
-            if time.monotonic() - self._last_used >= self.idle_unload_s and not self._lock.locked():
-                await self.unload()
+            # under the lock: a generate() scheduled in the same tick must not write to a
+            # worker that is about to exit
+            async with self._lock:
+                if self.loaded and time.monotonic() - self._last_used >= self.idle_unload_s:
+                    await self.unload()
 
     # ---------------------------------------------------------------- Model protocol
 
     async def healthcheck(self) -> ModelHealth:
         if not mlx_available():
-            return ModelHealth(self.name, False, "mlx-lm not installed (uv sync --extra mlx)")
+            return ModelHealth(self.name, False, "mlx-lm not installed (see `dfm doctor`)")
         if not self.spec.path.is_dir():
             return ModelHealth(self.name, False, f"model not found: {self.spec.path}")
         try:
-            reply = await self._call("ping", timeout=60)
+            async with self._lock:  # one reader on the worker's stdout at a time
+                reply = await self._call("ping", timeout=60)
         except ModelError as exc:
             return ModelHealth(self.name, False, f"{type(exc).__name__}: {exc}")
         state = "loaded" if self.loaded else "sleeping (loads on first use)"
@@ -379,6 +420,12 @@ class MLXModel:
                 await queue.put(None)
 
         task = asyncio.create_task(run())
-        while (chunk := await queue.get()) is not None:
-            yield chunk
-        await task
+        try:
+            while (chunk := await queue.get()) is not None:
+                yield chunk
+            await task
+        finally:
+            if not task.done():
+                task.cancel()  # the consumer stopped early: stop the worker too (see _call)
+                with contextlib.suppress(asyncio.CancelledError, ModelError):
+                    await task

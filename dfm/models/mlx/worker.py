@@ -7,6 +7,9 @@ from a local path; it never downloads anything.
 Requests:  {"id": n, "op": "ping" | "load" | "generate" | "unload", ...}
 Responses: {"id": n, "ok": true, ...} or {"id": n, "ok": false, "kind": "...", "error": "..."}
 Streaming generate sends {"id": n, "chunk": "..."} lines before the final response.
+Cancel:    {"op": "cancel", "target": n} stops request n after its current token; it then
+           answers with what it had (`stop_reason: "cancelled"`). stdin is read on a thread so
+           the cancel is seen while the main thread is generating.
 
 Generation spends as few joules as it can without changing what the model would answer:
 - Sampling follows the model's own generation_config.json unless the request sets a
@@ -30,7 +33,11 @@ import hashlib
 import importlib
 import itertools
 import json
+import os
+import queue
 import sys
+import tempfile
+import threading
 import time
 import traceback
 from collections.abc import Sequence
@@ -49,6 +56,7 @@ PREFILL_STEP = 2048
 SNAPSHOT_BACKOFF = 4  # tokens
 MAX_SNAPSHOTS = 2
 PACE_TOKENS = 32  # check thermal pressure this often
+REST_SLICE_S = 0.5  # a thermal rest sleeps in slices this long, so a cancel is seen promptly
 _PROBE = "\n⁣probe"
 _PROBE_MEMO = 32
 _THINK_CLOSE = "\n\nI have thought enough; time to answer.\n</think>\n\n"
@@ -159,6 +167,8 @@ class Worker:
         self.template = ""  # the chat template's source: what it supports
         self.kv_file: Path | None = None  # where the shared prefix snapshot persists
         self.template_kwargs: dict[str, Any] = {}  # this request's reasoning effort, tools
+        self.cancelled: set[Any] = set()  # request ids the parent asked to stop (reader thread)
+        self.restored_in_use = False  # the first snapshot came from disk and is unproven
 
     def ping(self, req: dict[str, Any]) -> dict[str, Any]:
         import importlib.metadata as md
@@ -205,36 +215,88 @@ class Worker:
             "reasoning_effort": "reasoning_effort" in self.template,
         }
 
+    def _weights_fingerprint(self) -> str:
+        """What the snapshot was computed with: model files by name, size and mtime, plus the
+        mlx-lm version (its cache classes). A changed file at the same path is a different
+        model, and its old snapshot would be silently wrong."""
+        import importlib.metadata as md
+
+        root = Path(self.path or "")
+        parts = [md.version("mlx-lm")]
+        for file in sorted(root.glob("*")):
+            if file.suffix in {".safetensors", ".json"} and file.is_file():
+                st = file.stat()
+                parts.append(f"{file.name}:{st.st_size}:{int(st.st_mtime)}")
+        return hashlib.sha256("\n".join(parts).encode()).hexdigest()
+
     def _persist(self) -> None:
         """Save the shortest snapshot (system prompt and tool definitions: the same for every
         task) so the next worker, a new `dfm` command or a resumed session, skips its prefill."""
         if self.kv_file is None or not self.snapshots or self.path is None:
             return
+        if self.restored_in_use:
+            return  # it came from this file; rewriting 250 MB to say the same thing is waste
         tokens, state = self.snapshots[0]
         save = _lib("mlx_lm.models.cache").save_prompt_cache
         self.kv_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.kv_file.with_name(self.kv_file.stem + ".tmp.safetensors")
+        # a private temp name: two workers persisting at once must not clobber each other's
+        fd, name = tempfile.mkstemp(dir=self.kv_file.parent, suffix=".tmp.safetensors")
+        tmp = Path(name)
+        os.close(fd)
         try:
-            save(str(tmp), state, {"model": self.path, "tokens": json.dumps(tokens)})
+            tokens_json = json.dumps(tokens)
+            save(
+                str(tmp),
+                state,
+                {
+                    "model": self.path,
+                    "tokens": tokens_json,
+                    "tokens_sha256": hashlib.sha256(tokens_json.encode()).hexdigest(),
+                    "weights": self._weights_fingerprint(),
+                },
+            )
             tmp.chmod(0o600)  # repository text (already redacted) is in there: user-only
             tmp.replace(self.kv_file)
         except Exception:  # a cache that cannot be saved costs a prefill, nothing else
             tmp.unlink(missing_ok=True)
 
     def _restore(self) -> int:
-        """The persisted snapshot, if it belongs to this model; tokens restored (0 if none)."""
+        """The persisted snapshot, if it belongs to this model and these weights; tokens
+        restored (0 if none). A file that does not match is deleted, not merely ignored."""
         if self.kv_file is None or not self.kv_file.is_file():
             return 0
         load = _lib("mlx_lm.models.cache").load_prompt_cache
         try:
             state, meta = load(str(self.kv_file), return_metadata=True)
-            if meta.get("model") != self.path:
+            tokens_json = str(meta["tokens"])
+            fits = (
+                meta.get("model") == self.path
+                and meta.get("weights") == self._weights_fingerprint()
+                and meta.get("tokens_sha256") == hashlib.sha256(tokens_json.encode()).hexdigest()
+            )
+            if not fits:
+                self._drop_persisted()
                 return 0
-            tokens = [int(t) for t in json.loads(meta["tokens"])]
-        except Exception:  # stale or unreadable: ignore it, it is only a cache
+            tokens = [int(t) for t in json.loads(tokens_json)]
+        except Exception:  # stale or unreadable: it is only a cache
+            self._drop_persisted()
             return 0
         self.snapshots = [(tokens, state)]
+        self.restored_in_use = True
         return len(tokens)
+
+    def _drop_persisted(self) -> None:
+        if self.kv_file is not None:
+            self.kv_file.unlink(missing_ok=True)
+
+    def restored_snapshot_failed(self) -> None:
+        """Generation raised while a snapshot read from disk was in play: it is the prime
+        suspect. Forget it and delete the file so the next worker starts from a prefill
+        instead of inheriting the same failure."""
+        if self.restored_in_use:
+            self.restored_in_use = False
+            self.snapshots = []
+            self._drop_persisted()
 
     def _template_kwargs(self, req: dict[str, Any]) -> dict[str, Any]:
         """Chat-template variables for this request: reasoning effort and native tools."""
@@ -262,9 +324,19 @@ class Worker:
         self._persist()
         self.model = self.tokenizer = self.path = None
         self._reset()
+        self.restored_in_use = False
         gc.collect()
         mx.clear_cache()
         return {}
+
+    def _rest(self, seconds: float, request_id: Any) -> float:
+        """Sleep `seconds` in slices, stopping early if the request is cancelled; slept time."""
+        slept = 0.0
+        while slept < seconds and request_id not in self.cancelled:
+            step = min(REST_SLICE_S, seconds - slept)
+            time.sleep(step)
+            slept += step
+        return slept
 
     def _encode(self, messages: Messages, *, generation_prompt: bool) -> list[int]:
         text = self.tokenizer.apply_chat_template(
@@ -380,7 +452,11 @@ class Worker:
         thermal_limit = thermal_limit if isinstance(thermal_limit, int) else None
         rest_budget = float(req.get("rest_budget_s") or 0.0)
         started = time.monotonic()
+        request_id = req.get("id")
+        self.cancelled.discard(request_id)  # a cancel for an earlier request with the same id
         cache, ready, reused = self._cache_for(messages, tokens, context_limit)
+        # from here on the restored snapshot has been used in anger: a later failure is not its
+        # fault only if this request completes
         rested = 0.0
         chunk_started = time.monotonic()
         loops = LoopDetector()
@@ -419,6 +495,9 @@ class Worker:
                 if loops.add(int(response.token)):
                     stop_reason = "loop"
                     break
+                if request_id in self.cancelled:
+                    stop_reason = "cancelled"
+                    break
                 if getattr(response, "finish_reason", None) == "stop":
                     stop_reason = "stop"
                 if thinking:
@@ -435,10 +514,9 @@ class Worker:
                         pause_for(self.thermal.level(), thermal_limit, busy), rest_budget - rested
                     )
                     if rest > 0:
-                        time.sleep(rest)
-                        rested += rest
+                        rested += self._rest(rest, request_id)
                     chunk_started = time.monotonic()
-            if budget_spent is None or generated >= max_tokens:
+            if budget_spent is None or generated >= max_tokens or stop_reason == "cancelled":
                 break
             # Budget forcing: close the thinking block and let the model answer. The last token
             # was sampled but not yet fed to the model, so it leads the continuation.
@@ -450,6 +528,9 @@ class Worker:
             ]
         if stream and len(text) > sent:
             _send({"id": req["id"], "chunk": text[sent:]})
+        self.cancelled.discard(request_id)
+        if stop_reason != "cancelled":
+            self.restored_in_use = False  # a full request ran on it: the snapshot is sound
         return {
             "text": text,
             "prompt_tokens": len(tokens),
@@ -470,16 +551,29 @@ class Worker:
         }
 
 
-def main() -> None:
-    worker = Worker()
+def _read_requests(worker: Worker, requests: queue.Queue[dict[str, Any] | None]) -> None:
+    """stdin → request queue, on its own thread. `cancel` is handled here, so it takes effect
+    while the main thread is inside a generation; everything else waits its turn."""
     for line in sys.stdin:
         if not line.strip():
             continue
         try:
-            req = json.loads(line)
+            req = cast(dict[str, Any], json.loads(line))
         except json.JSONDecodeError:
             continue
-        op = req.get("op")
+        if req.get("op") == "cancel":
+            worker.cancelled.add(req.get("target"))
+            continue
+        requests.put(req)
+    requests.put(None)  # EOF: the parent is gone
+
+
+def main() -> None:
+    worker = Worker()
+    requests: queue.Queue[dict[str, Any] | None] = queue.Queue()
+    threading.Thread(target=_read_requests, args=(worker, requests), daemon=True).start()
+    while (req := requests.get()) is not None:
+        op = str(req.get("op"))
         handler = {
             "ping": worker.ping,
             "load": worker.load,
@@ -497,6 +591,8 @@ def main() -> None:
             _send({"id": req.get("id"), "ok": False, "kind": "oom", "error": str(exc)})
             continue
         except Exception as exc:  # report everything; the parent decides what to do
+            if op == "generate":
+                worker.restored_snapshot_failed()
             kind = "oom" if "memory" in str(exc).lower() else "error"
             _send(
                 {
