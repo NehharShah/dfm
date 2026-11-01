@@ -197,6 +197,67 @@ def test_network_only_when_every_code_part_is_approved_for_it(tmp_path: Path) ->
         "(deny network-outbound)"
         not in sandbox.wrap(["bash", "-c", reads], env, classify(f"bash -c '{reads}'"))[2]
     )
+    # a read-only tool that can start a program (`awk | "sh"`, `sed e`) does not ride on the
+    # fetch's approval either, whatever its script looked like to the rules
+    for tool in ("awk '{print $1}' f", "sed -n 1p f", "less f", "find . -name x"):
+        script = f"git fetch && {tool}"
+        assert (
+            "(deny network-outbound)"
+            in sandbox.wrap(["bash", "-c", script], env, classify(f"bash -c {script!r}"))[2]
+        ), tool
+
+
+def test_dfm_private_paths_are_write_denied_after_the_allow_rule(tmp_path: Path) -> None:
+    env = make_env(tmp_path, tmp_path / "home")
+    lines = build_profile(env, network=False).text.splitlines()
+    allow = next(i for i, x in enumerate(lines) if x.startswith("(deny file-write* (require-not"))
+    private = next(i for i, x in enumerate(lines) if f'"{env.repo_root}/.dfm"' in x)
+    assert private > allow, "later SBPL rules win: the deny must follow the toolchain allow"
+    assert str(Path(sys.prefix).resolve()) in lines[private]
+    assert str(Path(sys.base_prefix).resolve()) in lines[private]
+    assert f"{env.home}/.cache/dfm" in lines[private]
+    # the worker's own profile re-allows its KV directory, nothing else under ~/.cache/dfm
+    kv = env.home / ".cache" / "dfm" / "kv"
+    worker = build_profile(env, network=False, extra_write=[kv]).text.splitlines()
+    kv_allow = worker.index(f'(allow file-write* (subpath "{kv}"))')
+    kv_deny = next(i for i, x in enumerate(worker) if f'"{env.home}/.cache/dfm"' in x)
+    assert kv_allow > kv_deny
+
+
+@live
+async def test_repository_code_cannot_write_what_dfm_trusts_later(tmp_path: Path) -> None:
+    env = make_env(tmp_path, tmp_path / "home")
+    (env.repo_root / ".dfm" / "originals").mkdir(parents=True)
+    (env.home / ".cache" / "dfm" / "kv").mkdir(parents=True)
+    (env.home / ".cache" / "other").mkdir(parents=True)
+    targets = {
+        "checkpoint original": env.repo_root / ".dfm" / "originals" / "deadbeef",
+        "repo policy": env.repo_root / ".dfm" / "config.toml",
+        "kv cache": env.home / ".cache" / "dfm" / "kv" / "x.safetensors",
+        "other cache": env.home / ".cache" / "other" / "ok",
+        "interpreter": Path(sys.prefix) / "lib" / "dfm-sandbox-probe-sitecustomize.py",
+        "repo file": env.repo_root / "ok.txt",
+    }
+    probe = (
+        f"for name, path in {[(k, str(v)) for k, v in targets.items()]!r}:\n"
+        "    try:\n"
+        "        open(path, 'a').write('x'); print(name, 'WROTE')\n"
+        "    except OSError:\n"
+        "        print(name, 'DENIED')\n"
+    )
+    try:
+        _, out = await run_sandboxed(env, probe)
+    finally:
+        targets["interpreter"].unlink(missing_ok=True)
+    results = dict(line.rsplit(" ", 1) for line in out.strip().splitlines())
+    assert results == {
+        "checkpoint original": "DENIED",
+        "repo policy": "DENIED",
+        "kv cache": "DENIED",
+        "other cache": "WROTE",
+        "interpreter": "DENIED",
+        "repo file": "WROTE",
+    }
 
 
 @live

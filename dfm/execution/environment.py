@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dfm.config import ConfigOverrides, DFMConfig, StateDirs, state_dirs
+from dfm.execution.git_hardening import harden_git_env
 from dfm.policy.network import NetworkMode, network_mode
 
 
@@ -253,6 +254,9 @@ class ExecutionEnvironment:
         """Environment for a subprocess. Secrets appear only when a tool asks for them by name."""
         env = scrub_env(self.source_env)
         env.update(_ALWAYS_ENV)
+        # git started from here (DFM's own, or a model-proposed `git status`) must not run a
+        # `core.fsmonitor` planted in repository config; the allowlist dropped the parent's copy
+        harden_git_env(env)
         env["TMPDIR"] = str(self.tmp)
         env["PYTHONPYCACHEPREFIX"] = str(self.tmp / "pycache")  # bytecode never lands in the repo
         env["PWD"] = str(self.cwd)

@@ -24,10 +24,12 @@ import os
 import platform
 import re
 import shutil
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from dfm.config.paths import cache_home
 from dfm.execution import DEFAULT_DENIED_HOME_PATHS, ExecutionEnvironment
 from dfm.policy import ActionClass
 from dfm.policy.network import NetworkMode
@@ -60,6 +62,50 @@ TOOLCHAIN_WRITE_DIRS = (
 )
 SYSTEM_WRITE_DIRS = ("/private/tmp", "/private/var/folders", "/dev")
 _NO_CODE = frozenset({ActionClass.SAFE_READ, ActionClass.SAFE_LOCAL})  # cannot open a socket
+# Read-only by classification, yet able to start another program or write a file given the
+# right script or option (`sed e`, `awk | "sh"`, `less !cmd`, `find -exec`, `rg --pre`, `git`
+# helpers). The rules catch the known spellings; the sandbox does not take their word for it
+# when deciding whether a compound command may have the network.
+_CAN_RUN_PROGRAMS = frozenset(
+    {
+        "sed",
+        "gsed",
+        "awk",
+        "gawk",
+        "nawk",
+        "mawk",
+        "less",
+        "more",
+        "man",
+        "find",
+        "fd",
+        "rg",
+        "git",
+        "tar",
+        "vim",
+        "vi",
+        "nvim",
+        "emacs",
+        "nano",
+    }
+)
+
+
+def dfm_private_paths(env: ExecutionEnvironment) -> list[Path]:
+    """Paths repository code must never write, even though they sit inside areas it may
+    otherwise write: what lands there is run or trusted by DFM later, outside the sandbox.
+
+    - `<repo>/.dfm`: checkpoint originals that `undo` restores, repository policy
+    - `~/.cache/dfm`: the persisted KV cache the worker restores as the model's prefix
+    - DFM's own interpreter and its venv (`~/.local/share/uv/...` is a toolchain cache
+      otherwise): a `sitecustomize.py` there runs in every later `dfm` invocation
+    """
+    return [
+        env.repo_root / ".dfm",
+        cache_home(env.source_env),
+        Path(sys.prefix),
+        Path(sys.base_prefix),
+    ]
 
 
 def _quote(path: str | Path) -> str:
@@ -105,7 +151,9 @@ def build_profile(
     extra_write: Sequence[Path] = (),
     read_only_repo: bool = False,
 ) -> SandboxProfile:
-    """`read_only_repo`: the repository itself is not writable (plan mode, review mode)."""
+    """`read_only_repo`: the repository itself is not writable (plan mode, review mode).
+    `extra_write`: paths this one process may write even where repository code may not (the
+    model worker's KV cache directory)."""
     home = Path(os.path.realpath(env.home))
     denied = [home / p for p in DEFAULT_DENIED_HOME_PATHS]
     roots = [r for r in env.boundary.roots if not (read_only_repo and r == env.repo_root)]
@@ -123,10 +171,14 @@ def build_profile(
     lines.append(f"(deny file-write* (require-not (require-any {allow_writes})))")
     # Later SBPL rules win. Repository code must not rewrite DFM's config or state (policy,
     # process registry), apart from this session's temp dir.
-    if env.state_roots:
-        state = " ".join(f"(subpath {_quote(p)})" for p in env.state_roots)
-        lines.append(f"(deny file-write* {state})")
-        lines.append(f"(allow file-write* (subpath {_quote(os.path.realpath(env.tmp))}))")
+    private = " ".join(
+        f"(subpath {_quote(os.path.realpath(p))})"
+        for p in (*env.state_roots, *dfm_private_paths(env))
+    )
+    lines.append(f"(deny file-write* {private})")
+    lines.append(f"(allow file-write* (subpath {_quote(os.path.realpath(env.tmp))}))")
+    for path in extra_write:
+        lines.append(f"(allow file-write* (subpath {_quote(os.path.realpath(path))}))")
     # Nor plant code that Git runs later, outside the sandbox, as DFM or the developer: hooks and
     # config (core.fsmonitor, aliases, filters), in the repo, its submodules and linked worktrees.
     git = re.escape(os.path.realpath(env.repo_root / ".git"))
@@ -158,7 +210,12 @@ class Sandbox:
         # One process gets one network setting. If any part runs code without a network
         # approval of its own (`git fetch && python exfil.py`), the whole command stays offline.
         unapproved_code = any(
-            part.network is None and part.action not in _NO_CODE for part in classification.parts
+            part.network is None
+            and (
+                part.action not in _NO_CODE
+                or (part.argv and part.argv[0].rsplit("/", 1)[-1] in _CAN_RUN_PROGRAMS)
+            )
+            for part in classification.parts
         )
         network = (
             classification.network is not None

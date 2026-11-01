@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from dfm.config.paths import cache_home
 from dfm.execution import ExecutionEnvironment
 from dfm.models.base import (
     ContextLimitExceeded,
@@ -111,6 +112,11 @@ class MLXModel:
     def loaded(self) -> bool:
         return self._loaded and self._proc is not None and self._proc.returncode is None
 
+    def _kv_dir(self) -> Path:
+        """Persisted KV snapshots (ADR 0013). Under `~/.cache` so toolchain cache rules apply to
+        the parent, but denied to repository code by the sandbox (`dfm_private_paths`)."""
+        return cache_home(self.env.source_env) / "kv"
+
     # ---------------------------------------------------------------- worker process
 
     async def _start(self) -> asyncio.subprocess.Process:
@@ -122,7 +128,8 @@ class MLXModel:
         env["PYTHONPATH"] = str(Path(__file__).resolve().parents[3])
         argv = [self.python, "-m", "dfm.models.mlx.worker"]
         if self.sandbox:
-            profile = build_profile(self.env, network=False, extra_write=[Path.home() / ".cache"])
+            # the worker alone may write the persisted KV cache; repository code may not
+            profile = build_profile(self.env, network=False, extra_write=[self._kv_dir()])
             argv = [SANDBOX_EXEC, "-p", profile.text, *argv]
         self._proc = await asyncio.create_subprocess_exec(
             *argv,
@@ -210,7 +217,7 @@ class MLXModel:
                     raise ModelUnavailable(f"{self.name}: {admission.reason}")
                 if admission.decision == "reduce_context":
                     self.spec = dataclasses.replace(self.spec, context=admission.context)
-        kv_dir = self.env.home / ".cache" / "dfm" / "kv"  # the worker's sandbox may write ~/.cache
+        kv_dir = self._kv_dir()
         reply = await self._call("load", timeout=900, path=str(self.spec.path), kv_dir=str(kv_dir))
         self._loaded = True
         self.stats.update(load_s=reply.get("load_s"), peak_gb=reply.get("peak_gb"))
