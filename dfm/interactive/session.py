@@ -2,9 +2,12 @@
 
 One Runtime serves the whole session, so the local model loads once and stays loaded
 between requests (it unloads itself after `idle_unload_s` without use). Each request is a
-turn. Review requests review the working-tree diff, questions go to `ask`, and every
-other request runs the agent loop, with the same policy, sandbox and verification as
-`dfm implement`. Every turn lands in one session trace.
+turn. Review requests review the working-tree diff. Questions are answered by the coder
+looking at the repository in read-only mode (read, search, read-only commands, never an
+edit), or from repository facts when no coder is configured. Every other request runs the
+agent loop, with the same policy, sandbox and verification as `dfm implement`. `!command`
+runs a shell command for the developer, through the same policy and sandbox. Every turn
+lands in one session trace.
 
 Each turn's edits get their own checkpoint id (`<session>-t<n>`), so `/undo` reverts the
 latest turn only, and only files that are still exactly as DFM left them. Files DFM edited
@@ -28,10 +31,14 @@ from dfm.orchestration.review import review
 from dfm.orchestration.runtime import Runtime
 from dfm.recovery import Checkpointer
 from dfm.routing import CODER_ROUTES, RouteDecision, RoutingContext, is_resume_request
+from dfm.security.sandbox import Sandbox
 from dfm.tools.git.state import file_hash, is_git_repo
+from dfm.tools.shell.runner import CommandRunner
 
-TurnKind = Literal["task", "question", "review", "plan"]
+TurnKind = Literal["task", "question", "review", "plan", "shell"]
 CONTEXT_TURNS = 6  # earlier turns the coder is told about
+ANSWER_STEPS = 12  # a question gets fewer steps than a change
+SHELL_LINES = 200  # command output shown for `!command`
 
 HELP = """\
 Type what you want done, or ask a question about the repository.
@@ -40,7 +47,8 @@ Type what you want done, or ask a question about the repository.
   /undo            revert the files DFM changed in its latest request
   /plan <task>     plan a change without editing anything
   /review          review the working-tree diff
-  /ask <question>  answer from repository facts, never edit
+  !<command>       run a shell command yourself (policy and sandbox apply; not interactive)
+  /ask <question>  answer by reading the code, never edit
   /do <task>       run the agent loop even if the request reads like a question
   /status          session, models and what changed
   /clear           forget earlier requests (files are not touched)
@@ -109,6 +117,9 @@ class InteractiveSession:
         try:
             if text.startswith("/"):
                 return await self._command(text)
+            if text.startswith("!"):
+                await self.run_shell(text[1:].strip())
+                return True
             await self._request(text)
             return True
         finally:
@@ -238,6 +249,33 @@ class InteractiveSession:
         self.display.outcome(outcome)
 
     async def run_question(self, text: str, decision: RouteDecision | None = None) -> None:
+        coder = None if is_resume_request(text) else self._pick_coder(decision)
+        if coder is None:
+            await self._facts_answer(text, decision)
+            return
+        earlier = self._earlier()
+        turn = self._new_turn(text, "question")
+        loop = AgentLoop(
+            self.rt, coder=coder, max_steps=ANSWER_STEPS, read_only=True, services=False
+        )
+        if earlier:
+            loop.history.append(earlier)
+        try:
+            answer = await loop.answer(text)
+        except BaseException:
+            turn.status, turn.summary = "interrupted", "stopped by the developer"
+            raise
+        turn.status = answer.status
+        turn.summary = answer.text.strip().splitlines()[0][:120] if answer.text.strip() else ""
+        if answer.status == "failed":
+            self.display.error(answer.text)
+            return
+        self.display.markdown(answer.text)
+        if answer.status == "unanswered":
+            self.display.note("The repository did not answer this.")
+
+    async def _facts_answer(self, text: str, decision: RouteDecision | None) -> None:
+        """No coder (or a resume question): RepoCanon and RepoKG facts, phrased by a helper."""
         turn = self._new_turn(text, "question")
         self.display.working("Reading the repository")
         answer = await ask(self.rt, text, decision)
@@ -251,6 +289,31 @@ class InteractiveSession:
         self.display.note(answer.sources + (f" · {answer.model}" if answer.model else ""))
         for item in answer.degraded:
             self.display.note(f"degraded: {item}")
+
+    async def run_shell(self, command: str) -> None:
+        """`!command`: the developer's own command, classified and sandboxed like any other
+        (a network or destructive command asks); output is shown, nothing is sent to a model."""
+        if not command:
+            self.display.error("! needs a command, for example: !git status")
+            return
+        turn = self._new_turn(f"!{command}", "shell")
+        self.display.user_command(command)
+        runner = CommandRunner(
+            self.rt.env,
+            self.rt.pm,
+            self.rt.policy,
+            on_event=self.rt.event,
+            wrap=Sandbox().wrap,
+            proposed_by="user",
+        )
+        outcome = await runner.run(command, timeout=600)
+        if outcome.result is None:
+            turn.status, turn.summary = "refused", outcome.verdicts[-1].reason
+            return
+        result = outcome.result
+        turn.status, turn.summary = "ran", f"exit {result.exit_code}"
+        lines = (result.stdout + result.stderr).splitlines()
+        self.display.output(lines, SHELL_LINES, result.exit_code)
 
     async def run_plan(self, text: str) -> None:
         turn = self._new_turn(text, "plan")

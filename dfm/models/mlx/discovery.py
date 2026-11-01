@@ -172,6 +172,14 @@ def default_roots(home: Path | None = None, data_dir: Path | None = None) -> lis
     return roots
 
 
+def hub_name(path: Path) -> str | None:
+    """`org/model` for a Hugging Face cache snapshot (`models--org--model/snapshots/<rev>`)."""
+    parts = path.parts
+    if len(parts) >= 3 and parts[-2] == "snapshots" and parts[-3].startswith("models--"):
+        return re.sub(r"^models--", "", parts[-3]).replace("--", "/")
+    return None
+
+
 def discover(roots: list[Path]) -> list[ModelCandidate]:
     found: dict[Path, ModelCandidate] = {}
     for root in roots:

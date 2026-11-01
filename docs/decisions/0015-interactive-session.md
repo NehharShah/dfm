@@ -47,3 +47,19 @@ switching models within a session, and `dfm commit`.
 Consequences: requests in one session share one session approval set, as within one
 `dfm implement` run; `dfm resume` starts with none. The history file holds what the developer
 typed. Without a terminal, `dfm` lists the commands; `dfm chat` is the explicit form.
+
+Addendum (2026-10-31, first use of 0.0.3): the session started in the home folder, treated
+every file under it as the repository, and answered `ls` with RepoCanon's package list, because
+questions went to `ask`, which sees only the repository summary. Changes:
+
+- **Start folder.** A session refuses the home folder, its parents and the filesystem root, and
+  warns outside a Git repository.
+- **Questions look at the code.** With a coder, a question runs `AgentLoop.answer` (read-only:
+  read, search, read-only tests, and `run` only for commands classified `SAFE_READ`; edit
+  actions are refused). It uses its own instructions and tool list, and the answer is the
+  `done` summary. Without a coder, questions still go to `ask`.
+- **`!command`.** The developer's own command runs through `CommandRunner` with
+  `proposed_by="user"` and the sandbox. Its output is shown and is never sent to a model.
+- **Model name.** The banner shows `org/model` from the Hugging Face cache path, not the
+  snapshot hash.
+

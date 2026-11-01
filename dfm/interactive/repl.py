@@ -29,9 +29,11 @@ from dfm.config import ConfigOverrides
 from dfm.interactive.display import Display
 from dfm.interactive.session import COMMANDS, InteractiveSession
 from dfm.models.base import Model
+from dfm.models.mlx.discovery import hub_name
 from dfm.orchestration.runtime import Runtime
 from dfm.policy import InteractiveApprover
 from dfm.sessions import SessionStatus
+from dfm.tools.git.state import is_git_repo
 
 PROMPT = "› "  # noqa: RUF001
 
@@ -58,16 +60,41 @@ def _bindings() -> KeyBindings:
     return kb
 
 
+def unsuitable_start(root: Path, home: Path | None = None) -> str | None:
+    """Why `root` is no place for a session: the home folder, one of its parents, or the
+    filesystem root would make every file under it the "repository"."""
+    root = root.resolve()
+    home = (home or Path.home()).resolve()
+    if root == home or root in home.parents or root == Path(root.anchor):
+        return (
+            f"dfm works inside a project, and {root} is not one. "
+            "cd into a project folder (ideally a Git repository) and run dfm there."
+        )
+    return None
+
+
+def model_name(path: str) -> str:
+    """The model's name (`org/model`), not its Hugging Face snapshot hash."""
+    folder = Path(path).expanduser()
+    return hub_name(folder) or folder.name
+
+
 def banner(rt: Runtime, display: Display) -> None:
     models = rt.loaded.config.models
     coder = models.primary.model or models.fallback.model
     display.line(f"dfm {__version__} · {rt.repo}", "bold")
     if coder:
-        display.note(f"coder: {Path(coder).name} (loads on first use, stays loaded)")
+        display.note(f"coder: {model_name(coder)} (loads on first use, stays loaded)")
     else:
         display.line(
             "No local coding model configured: run `dfm setup` to choose one. "
             "Questions still work from repository facts.",
+            "yellow",
+        )
+    if not is_git_repo(rt.repo):
+        display.line(
+            "Not a Git repository: /diff and /review need Git, and DFM cannot tell your "
+            "uncommitted work from its own. /undo still works.",
             "yellow",
         )
     display.note(
@@ -86,6 +113,10 @@ async def run(
     coder: Model | None = None,
 ) -> int:
     console = console or Console()
+    refusal = unsuitable_start(repo)
+    if refusal is not None:
+        console.print(refusal, style="yellow", markup=False)
+        return 2
     prompts: PromptSession[str] = PromptSession(
         history=None, input=pt_input, output=pt_output, key_bindings=_bindings()
     )
