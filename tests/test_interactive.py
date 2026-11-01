@@ -226,6 +226,26 @@ async def test_cancelling_a_request_keeps_the_session(home: Path, repo: Path) ->
     assert (repo / "src/calc/ops.py").read_text() == FIXED
 
 
+class BrokenCoder(SlowCoder):
+    """Raises something that is not a ModelError: a bug, as far as the session can tell."""
+
+    async def generate(self, request: GenerateRequest) -> GenerateResult:
+        raise ValueError("boom")
+
+
+async def test_an_unexpected_error_fails_the_turn_and_keeps_the_session(
+    home: Path, repo: Path
+) -> None:
+    session, _ = make_session(repo, BrokenCoder())  # type: ignore[arg-type]
+    assert await session.handle("fix the failing test")  # the REPL keeps going
+    turn = session.turns[0]
+    assert turn.status == "failed" and "ValueError: boom" in turn.summary  # not "interrupted"
+    session.coder = ScriptedCoder(FIX, DONE)  # type: ignore[assignment]
+    await session.handle("fix the failing test")
+    await session.rt.close("completed")
+    assert (repo / "src/calc/ops.py").read_text() == FIXED
+
+
 async def _run_repl(
     repo: Path, lines: str, coder: object, *, interrupt: SlowCoder | None = None
 ) -> tuple[int, str]:
