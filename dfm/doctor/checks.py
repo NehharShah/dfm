@@ -158,16 +158,20 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
         add(CheckResult("machine", "memory", status, f"{gb:.0f} GB unified memory", remedy))
     else:
         add(CheckResult("machine", "memory", Status.SKIP, "unknown"))
-    free = probe.disk_free(probe.home) / GB
-    add(
-        CheckResult(
-            "machine",
-            "disk",
-            Status.OK if free >= 40 else Status.WARN,
-            f"{free:.0f} GB free",
-            "" if free >= 40 else "local models need 15-40 GB",
+    try:
+        free = probe.disk_free(probe.home) / GB
+    except OSError as exc:  # $HOME missing or unreadable: a finding, not a traceback
+        add(CheckResult("machine", "disk", Status.SKIP, f"cannot measure: {exc}"))
+    else:
+        add(
+            CheckResult(
+                "machine",
+                "disk",
+                Status.OK if free >= 40 else Status.WARN,
+                f"{free:.0f} GB free",
+                "" if free >= 40 else "local models need 15-40 GB",
+            )
         )
-    )
 
     # ---- Apple FM
     if probe.which("fm") is None:

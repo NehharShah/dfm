@@ -10,7 +10,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # a newer push to a PR supersedes the run in flight; every push to main keeps its result
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -20,9 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # the floor (requires-python) and the newest release, which is what `pipx`/`uv tool`
-        # pick: asyncio subprocess behaviour differs between versions
-        python-version: ["3.12", "3.15"]
+        # the floor (requires-python), the release in between that 0.0.3 hit a bug on, and the
+        # newest release, which is what `pipx`/`uv tool` pick: asyncio subprocess behaviour
+        # differs between versions
+        python-version: ["3.12", "3.14", "3.15"]
     steps:
       # Actions are pinned to commit SHAs so a moved tag cannot change what runs here.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

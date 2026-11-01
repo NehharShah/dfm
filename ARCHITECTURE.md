@@ -199,9 +199,11 @@ tool calls are translated to DFM actions. An unusable reply is retried once with
   checkpointed. A file changed while an approval prompt was open is not overwritten.
 - **Git.** The guard protects uncommitted work and refuses history rewrites. Large tasks can run
   in a separate worktree and return a patch.
-- **Commands.** Every command is classified, authorized, sandboxed, and run by the process
-  manager with timeouts, output limits and ownership records. DFM stops only processes it
-  started.
+- **Commands.** Every command is classified, authorized and run by the process manager with
+  timeouts, output limits and ownership records. Repository code (tests, builds, anything a
+  model proposes) runs sandboxed. DFM's own fixed-argv calls to `gh`, `docker`, `brew` and
+  `reflex` run unsandboxed: those programs need their own credentials and sockets, their argv
+  is DFM's, and the output is still data. DFM stops only processes it started.
 - **Integrations.** GitHub, Docker and Compose, Kubernetes, blockchain toolchains (Foundry, Cast,
   Anvil), local services and log inspection use the same runner and policy.
 
@@ -231,17 +233,21 @@ flowchart LR
   privileged, production-cluster and mainnet actions require a typed confirmation of the target.
   Without a terminal, ask means deny. Actions proposed from untrusted output (for example a
   package name printed by a test) always ask. Model text in prompts is shown literally.
-- **Sandbox.** Every command, including the model worker, runs under a per-run `sandbox-exec`
-  profile. Reads are denied in key stores, cloud credentials, keychains, wallets and browser
-  profiles. Writes are allowed only in the repository, temp directories and toolchain caches,
-  and never in DFM's configuration or state, Git hooks or Git config. Network is denied unless
-  every part of the command was approved for a network category. Inside an existing sandbox,
-  DFM relies on the outer one, because macOS cannot nest them.
+- **Sandbox.** Repository code and the model worker run under a per-run `sandbox-exec`
+  profile. Reads are denied in key stores, cloud credentials, keychains, wallets, browser
+  profiles, shell startup files and histories, other coding agents' state, and DFM's own
+  policy, traces, logs and caches. Writes are allowed only in the repository, temp directories
+  and toolchain caches, and never in DFM's configuration or state, `<repo>/.dfm`, the persisted
+  KV cache, DFM's own interpreter, Git hooks or Git config. Network is denied unless every part
+  of the command was approved for a network category; read-only tools that can start programs
+  (`sed`, `awk`, `less`, `find`, `git`) never share another part's approval. Inside an existing
+  sandbox, DFM relies on the outer one, because macOS cannot nest them.
 - **Secrets.** Everything sent to a model, trace, log or prompt is redacted: known token formats,
   high-entropy values, key/value pairs, command-line passwords and secret files in diffs. A write
   containing a redaction marker is refused.
-- **Git hardening.** DFM's own Git processes run with `core.fsmonitor=false`, so repository
-  configuration cannot execute code when DFM reads status.
+- **Git hardening.** Every git process DFM starts, its own and model-proposed ones, runs with
+  `core.fsmonitor=false` in its environment, so repository configuration cannot execute code
+  when status is read.
 
 ## Resource controls
 
@@ -281,13 +287,17 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 ## Storage
 
 ```text
-~/.config/dfm/config.toml                     developer configuration (XDG paths honoured)
-~/.local/share/dfm/sessions/                  session traces (JSONL)
+~/.config/dfm/config.toml                     developer configuration, mode 0600 ($XDG_CONFIG_HOME)
+~/.local/share/dfm/sessions/                  session traces (JSONL)           ($XDG_DATA_HOME)
 ~/.local/share/dfm/{logs,metrics,processes}/  logs, metrics, process ownership records
 ~/.local/share/dfm/cache/                     integration caches
+~/.local/share/dfm/models/                    locally stored model weights (a discovery root)
+~/.local/share/dfm/tmp/<session>/             a session's temp dir (removed when it closes)
 ~/.cache/dfm/kv/                              persisted KV cache, one file per model, mode 0600
-<repo>/.dfm/config.toml                       repository configuration (tighten-only)
+                                              ($XDG_CACHE_HOME)
+<repo>/.dfm/config.toml                       repository configuration (allowlist, tighten-only)
 <repo>/.dfm/checkpoints/<session>/            checkpoints (listed in .git/info/exclude)
+<repo>/.dfm/originals/                        pre-edit file contents, by hash, for /undo
 ```
 
 ## Degradation

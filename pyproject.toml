@@ -51,8 +51,10 @@ Changelog = "https://github.com/NehharShah/dfm/blob/main/CHANGELOG.md"
 dfm = "dfm.cli.app:main"
 
 [project.optional-dependencies]
+# Upper bound on purpose: mlx-lm is 0.x and the worker uses its cache classes and
+# stream_generate directly; raise it after running `pytest -m mlx` against the new minor.
 mlx = [
-    "mlx-lm>=0.32.2",
+    "mlx-lm>=0.32.2,<0.33",
 ]
 
 [dependency-groups]
