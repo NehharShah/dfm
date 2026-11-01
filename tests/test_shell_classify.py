@@ -398,8 +398,11 @@ def test_network_category(command: str, network: NetworkCategory) -> None:
         ("make test &", A.SAFE_BUILD),
         ("git status\nrm -rf build", A.DESTRUCTIVE),
         ("(cd sub && cargo test)", A.SAFE_BUILD),
-        ("env FOO=1 pytest", A.SAFE_BUILD),
-        ("FOO=1 BAR=2 cargo test", A.SAFE_BUILD),
+        ("env CI=1 pytest", A.SAFE_BUILD),
+        ("CI=1 RUST_BACKTRACE=1 cargo test", A.SAFE_BUILD),
+        # an unknown variable may change what runs (PATH, GIT_*, *_OPTIONS): the developer decides
+        ("env FOO=1 pytest", A.UNKNOWN),
+        ("FOO=1 BAR=2 cargo test", A.UNKNOWN),
         ("timeout 60 pytest", A.SAFE_BUILD),
         ("time cargo build", A.SAFE_BUILD),
         ("nice -n 10 cargo build", A.SAFE_BUILD),
@@ -542,7 +545,7 @@ def test_gh_graphql_reads_and_writes() -> None:
         ("rg --pre ./payload x", "UNKNOWN"),
         ("rg foo src", "SAFE_READ"),
         ("env -S 'rm -rf ~/work' true", "DESTRUCTIVE"),
-        ("env FOO=1 pytest", "SAFE_BUILD"),
+        ("env CI=1 pytest", "SAFE_BUILD"),
         ("sed e", "UNKNOWN"),
         ("sed 's/.*/rm -rf x/e' file", "UNKNOWN"),
         ("sed '/x/w out' f", "UNKNOWN"),
@@ -654,3 +657,117 @@ def test_variable_paths_and_binaries_by_path() -> None:
 )
 def test_reviewed_cluster_container_chain_bypasses(command: str, expected: str) -> None:
     assert classify(command).action.value == expected
+
+
+# Reported bypasses (whole-codebase review, 2026-10-31): what /bin/sh reinterprets after the
+# classifier has read it. Each of these ran as SAFE_READ before.
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        # builtins that change how later commands resolve; `alias` expands on the next line
+        ('alias ls="rm -rf ."\nls', "UNKNOWN"),
+        ("hash -p ./evil.sh ls; ls", "UNKNOWN"),
+        ("export PATH=./bin; ls", "UNKNOWN"),
+        ("set -o pipefail; ls", "UNKNOWN"),
+        ("unset PATH; ls", "UNKNOWN"),
+        ("history", "SAFE_READ"),
+        # `VAR=value cmd`: only variables that cannot change what runs stay classified
+        ("PATH=./bin ls; true", "UNKNOWN"),
+        ("GIT_EXTERNAL_DIFF=/usr/bin/id git diff HEAD~1", "UNKNOWN"),
+        (
+            "GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=x git status",
+            "UNKNOWN",
+        ),
+        ("GIT_SSH_COMMAND='sh -c id' git fetch origin", "UNKNOWN"),
+        ("RIPGREP_CONFIG_PATH=./rc rg x", "UNKNOWN"),
+        ("env PATH=./bin ls", "UNKNOWN"),
+        ("LC_ALL=C sort f", "SAFE_READ"),
+        ("NO_COLOR=1 git status", "SAFE_READ"),
+        # quoting the shell expands after tokenization
+        ("cat $'/etc/hosts' | head -1", "UNKNOWN"),
+        ('cat $"/etc/hosts"', "UNKNOWN"),
+        ("cat {/etc/hosts,} | head -1", "UNKNOWN"),
+        ("ls -d {~/.ssh,}", "UNKNOWN"),
+        ("echo {1..3}", "UNKNOWN"),
+        ("awk '{print $1, $2}' f", "SAFE_READ"),  # braces inside quotes are awk's, not the shell's
+        ("find . -exec rm {} ;", "UNKNOWN"),
+        ("git log --format='{%h, %s}'", "SAFE_READ"),
+        # sed/awk scripts the rules did not look at
+        ("sed -n 'e id' README.md", "UNKNOWN"),
+        ("sed -n '1w /tmp/x' README.md", "UNKNOWN"),
+        ("sed -E 's/a/b/e' f", "UNKNOWN"),
+        ("sed 'eid' f", "UNKNOWN"),
+        ("sed -i '1e id' f", "UNKNOWN"),
+        ("sed -n -E '1,5p' f", "SAFE_READ"),
+        ("sed -e 's/a/b/' f", "SAFE_READ"),
+        ("sed -l 10 -n 'p' f", "SAFE_READ"),
+        ('awk \'BEGIN{printf("%s",\n"id") | "sh"}\'', "UNKNOWN"),
+        # bare `cd` is $HOME, `cd -` is wherever the shell was
+        ("cd && cat .zshrc", "UNKNOWN"),
+        ("cd -", "UNKNOWN"),
+        ("pushd", "UNKNOWN"),
+        ("cd src", "SAFE_READ"),
+        # `git rm -r .` empties the tree like `rm -r` would
+        ("git rm -r .", "LOCAL_DESTRUCTIVE"),
+        ("git rm -f a.py", "LOCAL_DESTRUCTIVE"),
+        ("git rm a.py", "WORKTREE_WRITE"),
+    ],
+)
+def test_reviewed_shell_reinterpretation_bypasses(command: str, expected: str) -> None:
+    assert classify(command).action.value == expected, classify(command).parts
+
+
+# git accepts any unambiguous prefix of a long option
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("git reset --har HEAD~1", "DESTRUCTIVE"),
+        ("git reset --ha", "DESTRUCTIVE"),
+        ("git branch --del foo", "DESTRUCTIVE"),
+        ("git push --forc origin main", "DESTRUCTIVE_REMOTE_WRITE"),
+        ("git push --force-with-lea=main origin main", "DESTRUCTIVE_REMOTE_WRITE"),
+        ("git push --mir", "DESTRUCTIVE_REMOTE_WRITE"),
+        ("git push --prun origin", "DESTRUCTIVE_REMOTE_WRITE"),
+        ("git commit --amen", "DESTRUCTIVE"),
+        ("git checkout --disc main", "DESTRUCTIVE"),
+        ("git checkout --forc main", "DESTRUCTIVE"),
+        ("git reset --soft HEAD~1", "LOCAL_STATE_CHANGE"),
+        ("git log --oneline", "SAFE_READ"),
+        ("git log --format=%h", "SAFE_READ"),
+    ],
+)
+def test_git_long_option_abbreviations(command: str, expected: str) -> None:
+    assert classify(command).action.value == expected, classify(command).parts
+
+
+# SQL comments are not part of the statement
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        (
+            'psql -h db.example.com -c "delete from users -- where id = 1"',
+            "DESTRUCTIVE_REMOTE_WRITE",
+        ),
+        ('psql -h db.example.com -c "delete from users /* where */"', "DESTRUCTIVE_REMOTE_WRITE"),
+        ('psql -c "delete from users /* all */ where id = 1"', "LOCAL_STATE_CHANGE"),
+        ('psql -c "-- drop table x\nselect 1"', "SAFE_READ"),
+    ],
+)
+def test_sql_comments_do_not_hide_the_statement(command: str, expected: str) -> None:
+    assert classify(command).action.value == expected, classify(command).parts
+
+
+def test_relative_paths_that_climb_out_are_outside() -> None:
+    assert classify("ls ./..").outside_boundary == ("./..",)
+    assert classify("cat src/../../x").outside_boundary == ("src/../../x",)
+    assert classify("cd ./.. && cat x/.env").outside_boundary == ("./..",)
+
+
+def test_assignment_values_are_boundary_checked_and_shown() -> None:
+    result = classify("GIT_DIR=/other/.git git log -p")
+    assert result.outside_boundary == ("/other/.git",)
+    # the approver and the trace see the prefix (its value redacted like any assignment)
+    summary = result.to_actions("agent")[0].summary
+    assert summary.startswith("'GIT_DIR=") and summary.endswith(" git log -p")
+    benign = classify("CI=1 pytest -q").to_actions("agent")[0].summary
+    assert benign.startswith("'CI=") and benign.endswith(" pytest -q")

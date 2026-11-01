@@ -36,12 +36,15 @@ A model may propose tool calls. Policy decides whether they run.
 | T12 | Resource exhaustion | Memory admission, model fallback, timeouts on every process |
 | T13 | Poisoned Reflex history | Reflex ranks below policy, tests and the developer; skills require developer approval |
 | T14 | Privilege escalation | Privileged actions require a typed confirmation |
+| T15 | A command classified without shell semantics but run with them (or the reverse) | Commands with shell operators run through `/bin/sh`, matching how they were classified; plain argv runs without a shell |
+| T16 | The shell reinterprets a command after classification (aliases, `PATH`/`GIT_*` prefixes, `$'..'` and brace quoting, scripts hidden behind options, abbreviated git options, SQL comments) | Shell-resolution builtins and non-benign `VAR=value` prefixes are `UNKNOWN`; expansions the classifier cannot see floor the command to `UNKNOWN`; rules read the operand wherever options put it; git abbreviations are expanded; comments are stripped before SQL matching; read-only tools that can start programs never share a compound command's network approval |
 
 ## Regression tests
 
 `tests/test_threats.py` (`pytest -m threat`, part of the default run) covers every threat. T1–T3
 run a planted repository through `dfm implement` with a scripted model and inspect every model
 request. The others test the classifier, policy, sandbox and filesystem boundary directly.
+`tests/test_docs.py` checks that this table and the test names stay in step.
 
 | Threat | Test |
 |---|---|
@@ -58,6 +61,8 @@ request. The others test the classifier, policy, sandbox and filesystem boundary
 | T12 | `test_t12_runaway_processes_and_oversized_models_are_stopped` |
 | T13 | `test_t13_reflex_history_is_evidence_not_authority` |
 | T14 | `test_t14_privilege_escalation_needs_a_human` |
+| T15 | `test_t15_shell_operators_run_with_the_semantics_they_were_classified_with` |
+| T16 | `test_t16_what_the_shell_reinterprets_never_runs_as_a_read` |
 
 ## Out of scope
 
