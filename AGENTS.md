@@ -43,6 +43,10 @@ Changing any of these requires an ADR and a threat-model update.
 ## Working on this repository
 
 - Do not push, publish packages or create cloud infrastructure.
+- Never commit to or push `main` directly, not even for a release or a one-line bump. Every
+  change, a release bump included, is a branch and a pull request (`CONTRIBUTING.md`,
+  Releasing). The only thing pushed outside a PR is the `vX.Y.Z` tag, after the release PR
+  has merged, and only when the developer asks for it.
 - Make Git writes (commit, add, branch) only when the developer asks.
 - Keep each branch or PR to one change.
 - Fix bugs in RepoCanon, RepoKG or Reflex in their own repositories; once released, raise the
