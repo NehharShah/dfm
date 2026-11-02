@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-11-01
+
 ### Changed
 
 - `mlx-lm` is installed with DFM on Apple Silicon with Python 3.12 to 3.14, so `pipx install

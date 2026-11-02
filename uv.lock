@@ -53,7 +53,7 @@ wheels = [
 
 [[package]]
 name = "dfm-agent"
-version = "0.0.5"
+version = "0.0.6"
 source = { editable = "." }
 dependencies = [
     { name = "mlx-lm", marker = "python_full_version < '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin'" },
