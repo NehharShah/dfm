@@ -7,13 +7,13 @@ Report security issues as described in [SECURITY.md](SECURITY.md), not in public
 
 ## Setup
 
-To use DFM, install it from PyPI (`uv tool install "dfm-agent[mlx]"`, see the
+To use DFM, install it from PyPI (`uv tool install --python 3.14 dfm-agent`, see the
 [README](README.md)). To work on it, run it from a checkout. macOS on Apple Silicon, Python
 3.12+, [uv](https://docs.astral.sh/uv/) and Git are required.
 
 ```bash
 git clone https://github.com/NehharShah/dfm && cd dfm
-uv sync                    # add --extra mlx to run a local model
+uv sync                    # includes mlx-lm on Python 3.12 to 3.14
 uv run dfm doctor
 ```
 

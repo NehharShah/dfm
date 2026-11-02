@@ -16,7 +16,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from dfm.config import ConfigError, LoadedConfig, load_config
-from dfm.models.mlx.model import MLX_INSTALL_HINT
+from dfm.models.mlx.model import mlx_install_hint
 from dfm.security.sandbox import already_sandboxed
 
 
@@ -226,7 +226,7 @@ def run_checks(probe: Probe | None = None, loaded: LoadedConfig | None = None) -
                     label,
                     Status.WARN,
                     "not installed",
-                    MLX_INSTALL_HINT,
+                    mlx_install_hint(),
                 )
             )
     if loaded is not None:

@@ -14,6 +14,7 @@ import contextlib
 import dataclasses
 import json
 import os
+import platform
 import signal
 import sys
 import time
@@ -66,11 +67,24 @@ THERMAL_POLL_S = 5.0
 CANCEL_GRACE_S = 5.0  # a cancelled worker has this long to answer before it is killed
 
 
-# How to get the local coder, whichever way DFM was installed.
-MLX_INSTALL_HINT = (
-    "install the mlx extra: `uv tool install 'dfm-agent[mlx]'` "
-    "(or `uv sync --extra mlx` in a checkout)"
-)
+def mlx_install_hint(
+    version: tuple[int, int] = sys.version_info[:2], machine: str | None = None
+) -> str:
+    """How to get mlx-lm, whichever way DFM was installed. It is a dependency on Apple Silicon
+    below Python 3.15 (pyproject.toml), so a missing one means an old install or Python 3.15."""
+    machine = machine or (platform.machine() if sys.platform == "darwin" else sys.platform)
+    if machine != "arm64":
+        return "the local coder needs an Apple Silicon Mac: MLX runs on its GPU"
+    if version >= (3, 15):
+        return (
+            "mlx-lm does not install on Python 3.15 yet; reinstall DFM on Python 3.14: "
+            "`uv tool install --force --python 3.14 dfm-agent` or "
+            "`pipx reinstall --python python3.14 dfm-agent`"
+        )
+    return (
+        "upgrade DFM, which installs it: `uv tool upgrade dfm-agent` or "
+        "`pipx upgrade dfm-agent` (`uv sync` in a checkout)"
+    )
 
 
 def mlx_available() -> bool:

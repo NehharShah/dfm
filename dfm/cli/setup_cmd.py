@@ -5,6 +5,7 @@ import sys
 from typing import Annotated
 
 import typer
+from rich.markup import escape
 
 from dfm.cli.common import console
 from dfm.orchestration.setup import setup as run_setup
@@ -35,11 +36,11 @@ def setup(
     report = asyncio.run(run_setup(confirm=confirm, dry_run=dry_run, evaluate_models=evaluate))
     for step in report.steps:
         hint = (
-            f"  [dim]→ {step.action}[/dim]"
+            f"  [dim]→ {escape(step.action)}[/dim]"
             if step.action and step.status in {"warn", "fail", "skip"}
             else ""
         )
         console.print(
-            f"[{_STYLE[step.status]}]{step.status:>7}[/] {step.name:<12} {step.detail}{hint}"
+            f"[{_STYLE[step.status]}]{step.status:>7}[/] {step.name:<12} {escape(step.detail)}{hint}"
         )
     raise typer.Exit(0 if report.ok else 1)

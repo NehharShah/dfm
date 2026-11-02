@@ -20,8 +20,8 @@ def _git(repo: Path, *args: str) -> str:
 
 @pytest.fixture
 def mlx_installed(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Act as if the optional mlx extra is installed. Tests of DFM's own model logic use fake
-    workers and fake model folders, so they must pass with or without `uv sync --extra mlx`."""
+    """Act as if mlx-lm is installed. Tests of DFM's own model logic use fake
+    workers and fake model folders, so they must pass with or without mlx-lm (CI on Python 3.15 has none)."""
     monkeypatch.setattr("dfm.models.mlx.model.mlx_available", lambda: True)
     monkeypatch.setattr("dfm.orchestration.setup.mlx_available", lambda: True)
     # fake model folders use gpt_oss; anything else stays unsupported, as with real mlx-lm

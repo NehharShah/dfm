@@ -5,7 +5,7 @@ access.
 
 | Symptom | Cause and fix |
 |---|---|
-| `mlx-lm not installed` | The local coder needs the `mlx` extra: `uv tool install "dfm-agent[mlx]"` (or `uv sync --extra mlx` in a checkout). Without it DFM answers questions but cannot edit. |
+| `mlx-lm not installed` | DFM installs `mlx-lm` on Apple Silicon with Python 3.12 to 3.14. On Python 3.15 it cannot yet (`sentencepiece` has no 3.15 build): reinstall on 3.14 with `uv tool install --force --python 3.14 dfm-agent` or `pipx reinstall --python python3.14 dfm-agent`. On an install older than 0.0.6 without `[mlx]`, `uv tool upgrade dfm-agent` or `pipx upgrade dfm-agent` adds it. Without it DFM answers questions but cannot edit. |
 | `not enough memory for a local coder (N GB available after headroom)` | The model does not fit in free memory. Close large apps, or choose a smaller model with `dfm setup`. A 20B model needs about 13 GB plus headroom. |
 | `no coding model available (run dfm setup …)` | No local coder is configured. Run `dfm setup`. |
 | Apple FM unavailable | `fm available` must report the system model as ready (Apple Intelligence enabled). Without it, DFM routes by rules and uses the local coder for text. |

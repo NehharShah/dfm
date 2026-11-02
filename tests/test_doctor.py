@@ -2,6 +2,7 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from dfm.cli.app import app
@@ -105,3 +106,13 @@ def test_toolchain_versions_and_proxy_lsp(tmp_path: Path) -> None:
     assert by_name(results, "rustfmt").detail == "rustfmt 1.0"
     analyzer = by_name(results, "rust-analyzer")
     assert analyzer.status is Status.WARN and "rustup component add" in analyzer.remedy
+
+
+def test_table_prints_remedies_with_their_brackets(monkeypatch: pytest.MonkeyPatch) -> None:
+    hint = "uv tool install 'dfm-agent[mlx]'"
+    monkeypatch.setattr(
+        "dfm.cli.doctor_cmd.run_checks",
+        lambda loaded=None: [CheckResult("models", "mlx-lm", Status.WARN, "not installed", hint)],
+    )
+    result = CliRunner().invoke(app, ["doctor"])
+    assert hint in " ".join(result.stdout.split())

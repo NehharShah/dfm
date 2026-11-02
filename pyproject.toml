@@ -39,6 +39,12 @@ dependencies = [
   "repokg>=0.4.5,<0.5",
   "pyyaml>=6.0",
   "prompt-toolkit>=3.0.48",
+  # The local coder, so a plain `dfm-agent` install can edit code. Upper bound on purpose:
+  # mlx-lm is 0.x and the worker uses its cache classes and stream_generate directly; raise it
+  # after running `pytest -m mlx` against the new minor. MLX runs only on Apple Silicon. Not on
+  # Python 3.15 yet: mlx-lm needs sentencepiece, which has no 3.15 wheel and builds only with
+  # cmake. Drop the python_version marker once sentencepiece publishes one.
+  "mlx-lm>=0.32.2,<0.33; sys_platform == 'darwin' and platform_machine == 'arm64' and python_version < '3.15'",
 ]
 
 [project.urls]
@@ -51,11 +57,8 @@ Changelog = "https://github.com/NehharShah/dfm/blob/main/CHANGELOG.md"
 dfm = "dfm.cli.app:main"
 
 [project.optional-dependencies]
-# Upper bound on purpose: mlx-lm is 0.x and the worker uses its cache classes and
-# stream_generate directly; raise it after running `pytest -m mlx` against the new minor.
-mlx = [
-    "mlx-lm>=0.32.2,<0.33",
-]
+# Empty: mlx-lm is a dependency now. Kept so `dfm-agent[mlx]` from older instructions installs.
+mlx = []
 
 [dependency-groups]
 dev = [

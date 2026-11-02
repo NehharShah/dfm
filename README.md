@@ -31,18 +31,20 @@ DFM is published on PyPI as [`dfm-agent`](https://pypi.org/project/dfm-agent/); 
 the import package are `dfm`.
 
 ```bash
-uv tool install "dfm-agent[mlx]"           # or: pipx install "dfm-agent[mlx]"
+uv tool install --python 3.14 dfm-agent   # or: pipx install --python python3.14 dfm-agent
 dfm doctor                                 # check this machine: models, tools, policy
 dfm setup                                  # choose a local model that fits in memory
 cd your-project && dfm                     # interactive session in that repository
 ```
 
-The `[mlx]` extra installs `mlx-lm`, which runs the local coding model. Without it DFM answers
-questions from repository facts but cannot edit code. DFM does not download model weights;
+This installs `mlx-lm`, which runs the local coding model. It does not install on Python 3.15
+yet (its dependency `sentencepiece` has no 3.15 build), hence `--python 3.14`; on 3.15 DFM
+installs without it, answers questions from repository facts, and cannot edit code. DFM does
+not download model weights;
 `dfm setup` picks from models already in your Hugging Face cache (the [guide](docs/guide.md)
 shows how to fetch one). Upgrade with `uv tool upgrade dfm-agent`.
 
-To work on DFM itself, clone the repository and use `uv sync --extra mlx` and `uv run dfm …`
+To work on DFM itself, clone the repository and use `uv sync` and `uv run dfm …`
 ([CONTRIBUTING.md](CONTRIBUTING.md)).
 
 `dfm` in a repository starts an interactive session: type what you want done, watch each step

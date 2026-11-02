@@ -21,7 +21,7 @@ from dfm.execution import ExecutionEnvironment
 from dfm.integrations.repocanon import RepoCanonProvider
 from dfm.integrations.repokg import RepoKGProvider
 from dfm.models.mlx.discovery import ModelCandidate, choose, default_roots, discover, usable
-from dfm.models.mlx.model import MLX_INSTALL_HINT, LocalModelSpec, MLXModel, mlx_available
+from dfm.models.mlx.model import LocalModelSpec, MLXModel, mlx_available, mlx_install_hint
 from dfm.models.resources import ModelResourceManager
 from dfm.policy import NetworkCategory, Policy
 from dfm.policy.network import NetworkPolicy
@@ -102,14 +102,15 @@ async def setup(
         shutil.which("uv") or "not found",
         "brew install uv",
     )
-    if mlx_available():
+    has_mlx = mlx_available()
+    if has_mlx:
         report.add("MLX", "ok", "mlx-lm installed")
     else:
         report.add(
             "MLX",
             "fail",
             "mlx-lm not installed: no local coding model can run",
-            MLX_INSTALL_HINT,
+            mlx_install_hint(),
         )
 
     for name, health in (
@@ -138,7 +139,16 @@ async def setup(
     )  # what fits when the machine is quiet
     primary, small = choose(candidates, max(budget, total_budget), context)
     report.primary, report.small = primary, small
-    if primary is None or small is None:
+    if (primary is None or small is None) and not has_mlx:
+        # whether a model is supported is a question for mlx-lm, so without it nothing is usable
+        found = ", ".join(c.name for c in candidates if c.mlx_format) or "none"
+        report.add(
+            "local coder",
+            "fail",
+            f"cannot run without mlx-lm (MLX models found: {found})",
+            mlx_install_hint(),
+        )
+    elif primary is None or small is None:
         usable_names = ", ".join(c.name for c in candidates if usable(c)) or "none"
         report.add(
             "local coder",
