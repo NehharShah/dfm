@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field, field_validator
 from dfm.context import ContextEngine, Task, TokenBudget
 from dfm.integrations.repokg.structure import roles_from_canon, structural_diff
 from dfm.models.base import (
+    ContextLimitExceeded,
     GenerateRequest,
     GenerateResult,
     Message,
@@ -602,6 +603,33 @@ class AgentLoop:
         instructions: str = INSTRUCTIONS,
         tools: tuple[dict[str, Any], ...] = ACTION_TOOLS,
     ) -> AgentAction:
+        """The model's next action. A prompt too long for the model's context (a context the
+        resource manager reduced, or a long history) is retried once with every earlier step
+        folded to one line and half the repository context, instead of ending the task."""
+        try:
+            return await self._propose(request, step, instructions, tools, self.context_tokens)
+        except ContextLimitExceeded as exc:
+            self.rt.event("note", text="prompt too long for the model's context: shortened")
+            while self.history:
+                self.compacted.append("- " + self.history.pop(0).splitlines()[0][:200])
+            try:
+                return await self._propose(
+                    request, step, instructions, tools, self.context_tokens // 2
+                )
+            except ContextLimitExceeded:
+                raise ContextLimitExceeded(
+                    f"{exc}. The prompt did not fit even shortened: free memory (close apps) "
+                    "and start a new session, so the model loads with a larger context"
+                ) from exc
+
+    async def _propose(
+        self,
+        request: str,
+        step: int,
+        instructions: str,
+        tools: tuple[dict[str, Any], ...],
+        context_tokens: int,
+    ) -> AgentAction:
         if self.coder is None:
             raise ModelError(
                 "no coding model available (run `dfm setup` to configure a local MLX coder)"
@@ -611,7 +639,7 @@ class AgentLoop:
         focus = list(dict.fromkeys([*_focus_paths(self.last_report), *sorted(self.fs.modified)]))
         bundle = await engine.build(
             Task(request, failures=self._context(request), focus_paths=focus),
-            TokenBudget(self.context_tokens),
+            TokenBudget(context_tokens),
         )
         self.rt.event("context_selected", items=bundle.provenance())
         commands = ""

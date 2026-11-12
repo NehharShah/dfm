@@ -179,6 +179,6 @@ reads: [ADR 0006](decisions/0006-reflex-protocol.md),
 | RepoKG unavailable | text search and language-adapter defaults |
 | Reflex unavailable | no historical practices |
 | Apple FM unavailable | deterministic routing; local coder for summaries |
-| Primary coder out of memory | reduced context, idle models unloaded, then the small coder |
+| Primary coder out of memory | reduced context (not below 16k), idle models unloaded, then the small coder |
 | GitHub unavailable | cached issue and PR data from `~/.local/share/dfm/cache` |
 | No interactive terminal | ask resolves to deny; blocked actions are reported |

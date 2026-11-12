@@ -22,6 +22,12 @@ from dfm.routing import RouteDecision, RoutingContext
 
 Runner = Callable[[Sequence[str]], str]
 
+# The smallest context the agent loop works in: its repository context, step history,
+# instructions and tool list, plus the tokens kept for the answer. Below this a model fails
+# partway through a task (an 8k context ran out at step 6 of a question), so admission never
+# reduces a context below it: dfm-small, or a refusal that says how much memory is missing.
+MIN_CODER_CONTEXT = 16384
+
 
 def _run(argv: Sequence[str]) -> str:
     try:
@@ -102,7 +108,7 @@ class ModelResourceManager:
         # the original 15%, which blocked a 27B model on a 48 GB Mac with a browser open
         headroom_fraction: float = 0.08,
         min_headroom_gb: float = 4.0,
-        min_context: int = 4096,
+        min_context: int = MIN_CODER_CONTEXT,
         home: Path | None = None,
     ) -> None:
         self.run = runner
@@ -191,17 +197,15 @@ class ModelResourceManager:
                     reduced,
                     model.memory_gb(reduced),
                     budget,
-                    f"context reduced to {reduced} to fit {budget:.1f} GB",
+                    f"context reduced to {reduced // 1024}k from {context // 1024}k to fit "
+                    f"{budget:.1f} GB available after headroom; close apps for the full context",
                 )
-        if (
-            small is not None
-            and small.path != model.path
-            and small.memory_gb(min(context, 16384)) <= budget
-        ):
+        floor = min(context, self.min_context)
+        if small is not None and small.path != model.path and small.memory_gb(floor) <= budget:
             return Admission(
                 "use_small",
-                min(context, 16384),
-                small.memory_gb(min(context, 16384)),
+                floor,
+                small.memory_gb(floor),
                 budget,
                 f"{model.name} needs {need:.1f} GB; only {budget:.1f} GB free: using dfm-small",
             )
@@ -210,7 +214,9 @@ class ModelResourceManager:
             0,
             need,
             budget,
-            f"not enough memory for a local coder ({budget:.1f} GB available after headroom)",
+            f"not enough memory for a local coder ({budget:.1f} GB available after headroom): "
+            f"{model.name} needs {model.memory_gb(floor):.1f} GB for a {floor // 1024}k context; "
+            "close apps to free memory and retry",
         )
 
     def router_adjuster(

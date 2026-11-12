@@ -1,9 +1,10 @@
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
 
+from dfm.models.base import ContextLimitExceeded, GenerateRequest, GenerateResult
 from dfm.orchestration.agent import AgentLoop, TaskOutcome
 from dfm.orchestration.runtime import Runtime
 from tests.helpers import DONE, FIX, ScriptedCoder
@@ -334,3 +335,44 @@ async def test_a_task_stops_at_its_time_limit(home: Path, repo: Path) -> None:
     assert outcome.status == "failed"
     assert outcome.summary.startswith("time limit reached")
     assert coder.prompts == []  # stopped before asking the model anything
+
+
+class Overflowing(ScriptedCoder):
+    """A coder whose context is too small for the prompts at the given call numbers."""
+
+    def __init__(self, overflow: set[int] | None, *actions: Mapping[str, object] | str) -> None:
+        super().__init__(*actions)
+        self.overflow = overflow  # None: every call after the first
+        self.calls = 0
+
+    async def generate(self, request: GenerateRequest) -> GenerateResult:
+        self.calls += 1
+        if (self.overflow is None and self.calls > 1) or (
+            self.overflow and self.calls in self.overflow
+        ):
+            raise ContextLimitExceeded(
+                "prompt is 4627 tokens; limit 8192 minus 4096 for the answer"
+            )
+        return await super().generate(request)
+
+
+async def test_a_step_too_long_for_the_context_is_shortened_and_retried(
+    home: Path, repo: Path
+) -> None:
+    look = {"action": "read", "reason": "look", "path": "src/calc/ops.py"}
+    coder = Overflowing({2}, look, FIX, DONE)
+    outcome, rt = await run_agent(repo, coder)
+    assert outcome.status == "completed", outcome.report()
+    # the retried step saw step 1 folded to one line, not the file it read verbatim
+    assert "Earlier steps (compacted):" in coder.prompts[1]
+    assert "    1 def add" not in coder.prompts[1]
+    notes = [e for e in rt.store.load(rt.session.id).events if e["type"] == "note"]
+    assert any("shortened" in str(e.get("text")) for e in notes)
+
+
+async def test_a_step_that_never_fits_says_what_to_do(home: Path, repo: Path) -> None:
+    look = {"action": "read", "reason": "look", "path": "src/calc/ops.py"}
+    outcome, _ = await run_agent(repo, Overflowing(None, look, FIX, DONE))
+    assert outcome.status == "failed"
+    assert "did not fit even shortened" in outcome.summary
+    assert "start a new session" in outcome.summary
