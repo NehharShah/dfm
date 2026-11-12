@@ -51,8 +51,9 @@ dfm models eval Qwen3.8-27B      # run a short coding check
 
 `setup` reads the Hugging Face cache (and `~/.local/share/dfm/models/`, LM Studio's folders),
 estimates memory per model and context size, and selects a primary and a smaller fallback coder.
-A 27B model at 4-bit needs about 18.5 GB at a 16k context. DFM will not load a model that does
-not fit and reports the memory available ([troubleshooting](troubleshooting.md)).
+A 27B model at 4-bit needs about 18.5 GB at a 16k context. DFM lowers the context when memory is
+short, but not below 16k (the agent cannot work in less): it uses the smaller coder instead, or
+refuses to load and reports the memory available ([troubleshooting](troubleshooting.md)).
 
 You are responsible for complying with the license of each model you download.
 

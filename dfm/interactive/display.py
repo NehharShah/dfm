@@ -234,8 +234,17 @@ class Display:
             self.note(f"    … {hidden} more lines (/diff shows everything)")
 
     def _on_failure(self, p: dict[str, Any]) -> None:
+        if p.get("stage") in {"act", "answer"}:
+            return  # the loop's own end: the session prints it as the outcome or the answer
         self.stop()
         self.detail(_one_line(p.get("error", "failed"), 160), "red")
+
+    def _on_recovery(self, p: dict[str, Any]) -> None:
+        if p.get("fallback") in {None, "", "none"}:
+            return  # nothing took over: the failure itself follows
+        self.stop()
+        why = _one_line(p.get("reason", ""), 110)
+        self.detail(f"{p.get('failed')} failed, using {p['fallback']}: {why}", "yellow")
 
     def _on_note(self, p: dict[str, Any]) -> None:
         if p.get("text"):

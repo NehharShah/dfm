@@ -161,7 +161,9 @@ Refusals, patch conflicts and test failures are returned as observations.
 - **Reasoning.** Steps request `medium` effort, and `high` after a failed edit, patch conflict or
   error. Each level has a thinking budget.
 - **Compaction.** History is kept in full up to a size limit, then the oldest steps are reduced
-  to one line each. History changes only at compaction, so the prefix cache stays valid.
+  to one line each. History changes only at compaction, so the prefix cache stays valid. A step
+  whose prompt does not fit the model's context is retried once with every earlier step folded
+  and half the repository context.
 - **Limits.** Tests rerun after each edit. A repair budget, no-progress detection, a step limit
   and a task token budget bound the loop.
 - **Verification ledger.** At the end DFM runs tests, type check and lint, the CI step when
@@ -261,7 +263,7 @@ flowchart LR
 
 | Concern | Control |
 |---|---|
-| Memory | Before loading, weights, KV cache at target context, snapshots and overhead must fit in free memory less a reserve. Otherwise DFM reduces context, falls back to the small coder, or refuses with the numbers. |
+| Memory | Before loading, weights, KV cache at target context, snapshots and overhead must fit in free memory less a reserve. Otherwise DFM reduces context (never below 16k, the least the agent loop works in, and says so), falls back to the small coder, or refuses with the numbers. |
 | Heat | Every 32 tokens the worker reads thermal pressure. At the limit (`models.thermal_limit`, default `moderate`) it pauses for as long as it just worked, and longer when hotter. Benchmarks pause between runs. |
 | Tokens | Recommended sampling, loop cutoff, per-step reasoning effort, thinking budgets, task token budget, native tool calls. |
 | Repeated work | KV snapshots reused across steps and persisted across sessions; Reflex answers cached per session; integration caches keyed on freshness. |
@@ -316,7 +318,7 @@ cached tokens, memory peak, thermal rest, tool calls, repairs) are available thr
 | RepoKG | text search and language-adapter defaults; structural diff skipped and reported |
 | Reflex | no historical practices |
 | Apple FM | deterministic routing; the local coder handles short text |
-| Memory for the primary coder | reduced context, then the small coder, then a reported refusal |
+| Memory for the primary coder | reduced context down to 16k, then the small coder, then a reported refusal |
 | Sandbox | environment scrubbing only, with a `doctor` warning, or the outer sandbox |
 | GitHub | cached issue, PR and CI data, marked stale |
 | Interactive terminal | ask resolves to deny; blocked actions are reported |

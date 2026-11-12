@@ -27,7 +27,7 @@ from dfm.models.base import Model
 from dfm.models.mlx.discovery import describe_dir
 from dfm.models.mlx.model import LocalModelSpec, MLXModel
 from dfm.models.pool import ModelPool
-from dfm.models.resources import ModelResourceManager
+from dfm.models.resources import Admission, ModelResourceManager
 from dfm.models.thermal import limit_level
 from dfm.observability import configure_logging, summarize
 from dfm.observability import start as start_metrics
@@ -204,7 +204,7 @@ class Runtime:
             enabled=integrations.reflex.enabled and integrations.reflex.use_handbook,
             use_skills=integrations.reflex.use_skills,
         )
-        return cls(
+        rt = cls(
             repo,
             loaded,
             dirs,
@@ -221,6 +221,23 @@ class Runtime:
             start_metrics(session.id),
             overrides,
             approver,
+        )
+        for coder in (primary, small):
+            if isinstance(coder, MLXModel):
+                coder.on_admission = rt.admitted
+        return rt
+
+    def admitted(self, model: str, admission: Admission) -> None:
+        """A local model is loading with a reduced context: say so (closing apps would give the
+        full one). A refusal is the model's error, which the pool records as a recovery."""
+        if admission.decision != "reduce_context":
+            return
+        self.event(
+            "note",
+            text=f"{model}: {admission.reason}",
+            model=model,
+            admission=admission.decision,
+            context=admission.context,
         )
 
     def event(self, event_type: str, **payload: Any) -> None:

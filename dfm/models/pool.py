@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from dfm.models.base import (
+    ContextLimitExceeded,
     GenerateRequest,
     GenerateResult,
     Model,
@@ -95,11 +96,13 @@ class FallbackModel:
 
     async def generate(self, request: GenerateRequest) -> GenerateResult:
         errors: list[str] = []
+        too_long = 0
         slots = self._available()
         for i, slot in enumerate(slots):
             try:
                 result = await slot.model.generate(request)
             except ModelError as exc:
+                too_long += isinstance(exc, ContextLimitExceeded)
                 reason = f"{type(exc).__name__}: {exc}"
                 slot.breaker.failure(reason, outage=isinstance(exc, _OUTAGE))
                 errors.append(f"{slot.model.name}: {reason}")
@@ -110,6 +113,9 @@ class FallbackModel:
             slot.breaker.success()
             self.last_used = slot.model.name
             return result
+        if errors and too_long == len(errors):
+            # the prompt is too long for every model: the caller can shorten it and retry
+            raise ContextLimitExceeded("; ".join(errors))
         raise ModelUnavailable("; ".join(errors) or f"{self.name}: no model available")
 
     async def stream(self, request: GenerateRequest) -> AsyncIterator[str]:
