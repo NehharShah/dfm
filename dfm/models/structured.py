@@ -25,6 +25,9 @@ from dfm.models.schema import fm_schema
 from dfm.observability.metrics import metric
 
 _DECODER = json.JSONDecoder()
+# Tokens a thinking model may spend before it must answer, when the caller set no budget.
+# Without a cap it can think until max_tokens and never reach the JSON.
+DEFAULT_THINKING_BUDGET = 1024
 
 
 def first_json_object(text: str) -> dict[str, Any] | None:
@@ -82,7 +85,13 @@ def record_usage(result: GenerateResult) -> None:
 
 
 async def structured[T: BaseModel](model: Model, request: GenerateRequest, out: type[T]) -> T:
-    request = dataclasses.replace(request, schema=fm_schema(out))
+    request = dataclasses.replace(
+        request,
+        schema=fm_schema(out),
+        thinking_budget=(
+            DEFAULT_THINKING_BUDGET if request.thinking_budget is None else request.thinking_budget
+        ),
+    )
     attempt_request = request
     last: Exception | None = None
     for _ in range(2):

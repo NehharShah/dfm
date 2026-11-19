@@ -13,7 +13,7 @@ from dfm.execution import ExecutionEnvironment
 from dfm.models import GenerateRequest, GenerateResult, ModelHealth, StructuredOutputError
 from dfm.models.apple import AppleFMModel
 from dfm.models.schema import fm_schema
-from dfm.models.structured import first_json_object, structured
+from dfm.models.structured import DEFAULT_THINKING_BUDGET, first_json_object, structured
 from dfm.models.tasks import CommitMessage, CompressedLog, RouteSuggestion, TaskClassification
 from dfm.processes import ProcessManager, ProcessRegistry
 from dfm.routing import Route
@@ -96,6 +96,18 @@ async def test_structured_success_sets_schema() -> None:
     out = await structured(model, GenerateRequest.prompt("git status"), RouteSuggestion)
     assert out.route is Route.TOOLS_ONLY
     assert model.requests[0].schema == fm_schema(RouteSuggestion)
+
+
+async def test_structured_caps_thinking_unless_the_caller_did() -> None:
+    reply = '{"subject": "Fix add", "body": null}'
+    model = ScriptedModel(reply, reply, "not json", reply)
+    await structured(model, GenerateRequest.prompt("x"), CommitMessage)
+    await structured(model, GenerateRequest.prompt("x", thinking_budget=300), CommitMessage)
+    await structured(model, GenerateRequest.prompt("x"), CommitMessage)  # retried once
+    first, own, bad, retry = model.requests
+    assert first.thinking_budget == DEFAULT_THINKING_BUDGET
+    assert own.thinking_budget == 300
+    assert bad.thinking_budget == retry.thinking_budget == DEFAULT_THINKING_BUDGET
 
 
 async def test_structured_tolerates_fenced_json() -> None:
