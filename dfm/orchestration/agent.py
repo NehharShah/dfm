@@ -217,8 +217,7 @@ ANSWER_TOOLS: tuple[dict[str, Any], ...] = (
 )
 # A final turn may only finish with an answer or explicitly give up.
 ANSWER_FINISH_TOOLS = tuple(
-    tool for tool in ANSWER_TOOLS
-    if tool["function"]["name"] in {"done", "give_up"}
+    tool for tool in ANSWER_TOOLS if tool["function"]["name"] in {"done", "give_up"}
 )
 
 
@@ -882,8 +881,13 @@ class AgentLoop:
                     observation = f"error: {exc}"
             self._observe(step, action, observation)
             signature = (
-                action.action, action.path, action.start, action.end,
-                action.pattern, action.command, observation[:2000],
+                action.action,
+                action.path,
+                action.start,
+                action.end,
+                action.pattern,
+                action.command,
+                observation[:2000],
             )
             if signature in seen:
                 repeats += 1
