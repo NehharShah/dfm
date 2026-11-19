@@ -103,8 +103,9 @@ editing files it changed earlier. Once you edit such a file yourself, it is prot
 
 Ctrl-C stops the current request and keeps the session: a running command is killed, and a
 generating model stops after its current token and stays loaded, so the next request does not
-wait for it or reload it. `/exit`, `exit`, `quit`, `q` or Ctrl-D ends the session. Anything you
-type while a request runs is not printed over its output; it is waiting at the next prompt.
+wait for it or reload it. `/exit`, `exit`, `quit`, `q` or Ctrl-D ends the session. Input typed while a request is running is not echoed and is **discarded** when the request
+ends, not silently submitted at the next prompt. Wait for the next `›` prompt before typing.
+This is intentional: a complete but hidden queued line could otherwise execute unexpectedly.
 Confirmations appear inline and show the whole command line, not only the part that needs
 approval; Ctrl-C at a confirmation answers no. An unexpected error fails the request and the
 session goes on. Without a terminal (pipes, CI), `dfm` lists the commands instead; `dfm chat`

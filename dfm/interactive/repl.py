@@ -3,7 +3,8 @@
 Input comes from prompt_toolkit (history, editing, Esc-Enter for a newline, slash-command
 completion). A request runs as its own task: Ctrl-C cancels that task, which stops the
 running command or model call and leaves the session open. Ctrl-C at the prompt clears the
-line; Ctrl-D or /exit ends the session.
+line; Ctrl-D or /exit ends the session. Input entered while an action is running is discarded
+on return to the prompt rather than silently executed as a new turn.
 
 Approvals use the same prompt machinery, so Ctrl-C at a confirmation is a clean "no".
 """
@@ -56,8 +57,12 @@ def _history(path: Path) -> History:
 
 @contextlib.contextmanager
 def no_echo(stream: TextIO | None) -> Generator[None]:
-    """While a request runs, keys typed ahead are not echoed over its output. They stay in
-    the terminal's input queue and appear at the next prompt; Ctrl-C still interrupts."""
+    """Hide input while a request runs and discard any unseen type-ahead on exit.
+
+    Leaving complete lines in the terminal queue makes them arrive at the *next* prompt
+    already submitted, without the developer seeing or explicitly submitting that turn.
+    Clear only input (not output) before restoring terminal echo. Ctrl-C still interrupts.
+    """
     if stream is None or not stream.isatty():
         yield
         return
@@ -69,7 +74,12 @@ def no_echo(stream: TextIO | None) -> Generator[None]:
     try:
         yield
     finally:
-        termios.tcsetattr(fd, termios.TCSANOW, saved)
+        try:
+            # A queued newline must never become an invisible follow-up request.
+            # The old behavior retained input typed with terminal echo disabled.
+            termios.tcflush(fd, termios.TCIFLUSH)
+        finally:
+            termios.tcsetattr(fd, termios.TCSANOW, saved)
 
 
 def _bindings() -> KeyBindings:
@@ -175,6 +185,7 @@ async def run(
     banner(rt, display)
     loop = asyncio.get_running_loop()
     status: SessionStatus = "completed"
+    input_sequence = 0
     try:
         while True:
             try:
@@ -183,6 +194,16 @@ async def run(
                 continue
             except EOFError:
                 break
+            if line.strip():
+                input_sequence += 1
+                # Only a completed prompt_toolkit submission enters the dispatcher.
+                # Do not persist a second copy of potentially sensitive input text.
+                rt.event(
+                    "note",
+                    text="interactive prompt submitted",
+                    input_source="prompt_toolkit",
+                    input_sequence=input_sequence,
+                )
             task = asyncio.create_task(session.handle(line))
             with contextlib.suppress(NotImplementedError, RuntimeError):
                 loop.add_signal_handler(signal.SIGINT, task.cancel)

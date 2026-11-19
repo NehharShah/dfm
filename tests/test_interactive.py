@@ -288,6 +288,14 @@ async def test_prompt_loop_end_to_end(home: Path, repo: Path) -> None:
     trace = _last_session(home)
     assert trace["header"]["mode"] == "interactive"  # type: ignore[index]
     events = trace["events"]
+    assert isinstance(events, list)
+    submissions = [
+        event
+        for event in events
+        if event["type"] == "note" and event.get("input_source") == "prompt_toolkit"
+    ]
+    assert [event["input_sequence"] for event in submissions] == [1, 2, 3]
+    assert all(event["text"] == "interactive prompt submitted" for event in submissions)
     assert events[-1]["type"] == "task_completed" and events[-1]["status"] == "completed"  # type: ignore[index]
 
 
@@ -476,7 +484,7 @@ async def test_exit_words_end_the_session(home: Path, repo: Path) -> None:
     assert [t.request for t in session.turns] == ["exit the loop early in parse()"]
 
 
-def test_type_ahead_is_not_echoed_but_kept_for_the_next_prompt() -> None:
+def test_unseen_type_ahead_is_discarded_not_run_at_next_prompt() -> None:
     import select
     import termios
 
@@ -492,7 +500,8 @@ def test_type_ahead_is_not_echoed_but_kept_for_the_next_prompt() -> None:
             echoed, _, _ = select.select([master], [], [], 0.2)
             assert echoed == []  # nothing printed over the running request
         assert termios.tcgetattr(slave) == before
-        assert os.read(slave, 100) == b"next request\n"  # still queued for the prompt
+        ready, _, _ = select.select([slave], [], [], 0.1)
+        assert ready == []  # no invisible new request is waiting to execute
     with no_echo(io.StringIO()):  # not a terminal: nothing to do
         pass
     os.close(master)
