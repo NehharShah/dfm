@@ -44,8 +44,8 @@ async def test_repeated_read_forces_final_answer(loop: agent.AgentLoop) -> None:
         names = {item["function"]["name"] for item in tools}
         calls.append(names)
         if names == {"done", "give_up"}:
-            return agent.AgentAction(action="give_up", summary="Requested logs are inaccessible")
-        return agent.AgentAction(action="read", path="worker.py", start=1, end=100)
+            return agent.AgentAction(action="give_up", reason="blocked", summary="Requested logs are inaccessible")
+        return agent.AgentAction(action="read", reason="inspect", path="worker.py", start=1, end=100)
 
     async def execute(_action: agent.AgentAction) -> str:
         return "worker.py lines 1-100 of 100: same contents"
@@ -71,8 +71,8 @@ async def test_last_step_is_reserved_for_final_answer(loop: agent.AgentLoop) -> 
         names = {item["function"]["name"] for item in tools}
         calls.append(names)
         if names == {"done", "give_up"}:
-            return agent.AgentAction(action="done", summary="Found symbol in file.py:1")
-        return agent.AgentAction(action="search", pattern="symbol")
+            return agent.AgentAction(action="done", reason="complete", summary="Found symbol in file.py:1")
+        return agent.AgentAction(action="search", reason="locate", pattern="symbol")
 
     async def execute(_action: agent.AgentAction) -> str:
         return "file.py:1: symbol"
@@ -91,7 +91,7 @@ async def test_invalid_final_action_is_not_executed(loop: agent.AgentLoop) -> No
     executed: list[bool] = []
 
     async def next_action(*_args: object, **_kwargs: object) -> agent.AgentAction:
-        return agent.AgentAction(action="run", command="git status")
+        return agent.AgentAction(action="run", reason="inspect status", command="git status")
 
     async def execute(_action: agent.AgentAction) -> str:
         executed.append(True)
@@ -117,7 +117,7 @@ async def test_distinct_read_ranges_are_not_treated_as_repeats(
     ) -> agent.AgentAction:
         calls.append({item["function"]["name"] for item in tools})
         if step == 5:
-            return agent.AgentAction(action="done", summary="Reviewed distinct ranges")
+            return agent.AgentAction(action="done", reason="complete", summary="Reviewed distinct ranges")
         return agent.AgentAction(
             action="read", path="worker.py", start=step * 10, end=step * 10 + 9
         )
@@ -141,7 +141,7 @@ async def test_clears_previous_request_history(loop: agent.AgentLoop) -> None:
 
     async def next_action(*_args: object, **_kwargs: object) -> agent.AgentAction:
         history_on_action.append((list(loop.history), list(loop.compacted)))
-        return agent.AgentAction(action="give_up", summary="No relevant evidence")
+        return agent.AgentAction(action="give_up", reason="blocked", summary="No relevant evidence")
 
     loop._next_action = next_action  # type: ignore[method-assign]
     await loop.answer("New question")
