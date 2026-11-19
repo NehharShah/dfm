@@ -16,6 +16,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   history and retries the step once, and otherwise says to free memory and start a new session.
 - The interactive session printed a failed request's error twice. It now prints it once, and says
   when it switched to dfm-small.
+- A model that thinks no longer thinks without a cap when a `structured()` caller (router, plan,
+  review, GitHub triage, commit message) sets no thinking budget; it gets 1,024 tokens, then
+  must answer. Before, Qwen3.5-9B could spend all 4,096 tokens thinking and return no JSON (#46).
 
 ## [0.0.6] - 2026-11-01
 
