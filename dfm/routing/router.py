@@ -67,6 +67,14 @@ def _has(text: str, *patterns: str) -> bool:
 
 _RESUME = r"^\s*resume\b|\bwhat were we doing\b|\bpick up where\b|\bcontinue (where|what) (we|i) (left|were)\b"
 
+# Git commands that change repository state are tasks, not read-only questions.
+# Routing does not authorize execution: the Git guard and policy still decide.
+_GIT_MUTATION = (
+    r"^\s*git\s+(checkout|switch)\b",
+    r"^\s*(checkout|switch)\s+(to\s+)?(the\s+)?\S+\s+branch\b",
+    r"^\s*(switch|checkout|change|move)\s+(to\s+)?(the\s+)?(main|master|develop|dev)\s*(branch)?\s*$",
+)
+
 
 def is_resume_request(text: str) -> bool:
     """'resume what we were doing yesterday' and friends: handled by `dfm resume`."""
@@ -157,6 +165,15 @@ class Router:
             )
             coder = tier if ctx.override in CODER_ROUTES else None
             return RouteDecision(ctx.override, ("user override",), "override", 1.0, coder)
+
+        if _has(text, *_GIT_MUTATION):
+            return RouteDecision(
+                Route.PRIMARY_CODER,
+                ("Git state change: agent action requires policy approval",),
+                "deterministic",
+                0.95,
+                "primary",
+            )
 
         wants_change = _has(text, _EDIT_VERBS, _INVESTIGATE, _ISSUE) and not _has(
             text, r"^\s*git\s"

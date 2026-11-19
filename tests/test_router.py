@@ -10,6 +10,10 @@ R = Route
 TABLE: list[tuple[str, Route, str | None]] = [
     # the routing examples from the design spec
     ("git status", R.TOOLS_ONLY, None),
+    ("git checkout main", R.PRIMARY_CODER, "primary"),
+    ("git switch main", R.PRIMARY_CODER, "primary"),
+    ("switch to main branch", R.PRIMARY_CODER, "primary"),
+    ("git branch -a", R.TOOLS_ONLY, None),
     ("write a commit message for these changes", R.APPLE, None),
     ("fix the typo in the README", R.SMALL_CODER, "small"),
     ("fix the borrow checker error in src/parser.rs", R.PRIMARY_CODER, "primary"),
