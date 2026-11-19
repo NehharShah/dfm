@@ -289,7 +289,8 @@ async def test_prompt_loop_end_to_end(home: Path, repo: Path) -> None:
     assert trace["header"]["mode"] == "interactive"  # type: ignore[index]
     events = trace["events"]
     submissions = [
-        event for event in events
+        event
+        for event in events
         if event["type"] == "note" and event.get("input_source") == "prompt_toolkit"
     ]
     assert [event["input_sequence"] for event in submissions] == [1, 2, 3]
