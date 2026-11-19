@@ -19,7 +19,9 @@ def loop(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> agent.AgentLoop:
     object.__setattr__(
         worker,
         "rt",
-        SimpleNamespace(repo=tmp_path, canon=None, graph=None, event=lambda *_args, **_kwargs: None),
+        SimpleNamespace(
+            repo=tmp_path, canon=None, graph=None, event=lambda *_args, **_kwargs: None
+        ),
     )
     worker.adapter = None
     worker.commands = None
@@ -53,7 +55,9 @@ async def test_repeated_read_forces_final_answer(loop: agent.AgentLoop) -> None:
             return agent.AgentAction(
                 action="give_up", reason="blocked", summary="Requested logs are inaccessible"
             )
-        return agent.AgentAction(action="read", reason="inspect", path="worker.py", start=1, end=100)
+        return agent.AgentAction(
+            action="read", reason="inspect", path="worker.py", start=1, end=100
+        )
 
     async def execute(_action: agent.AgentAction) -> str:
         return "worker.py lines 1-100 of 100: same contents"
@@ -131,7 +135,11 @@ async def test_distinct_read_ranges_are_not_treated_as_repeats(
                 action="done", reason="complete", summary="Reviewed distinct ranges"
             )
         return agent.AgentAction(
-            action="read", reason="inspect range", path="worker.py", start=step * 10, end=step * 10 + 9
+            action="read",
+            reason="inspect range",
+            path="worker.py",
+            start=step * 10,
+            end=step * 10 + 9,
         )
 
     async def execute(action: agent.AgentAction) -> str:
