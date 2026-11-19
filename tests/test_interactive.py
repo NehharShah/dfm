@@ -288,6 +288,7 @@ async def test_prompt_loop_end_to_end(home: Path, repo: Path) -> None:
     trace = _last_session(home)
     assert trace["header"]["mode"] == "interactive"  # type: ignore[index]
     events = trace["events"]
+    assert isinstance(events, list)
     submissions = [
         event
         for event in events
