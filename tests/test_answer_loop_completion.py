@@ -19,9 +19,7 @@ def loop(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> agent.AgentLoop:
     object.__setattr__(
         worker,
         "rt",
-        SimpleNamespace(
-            repo=tmp_path, canon=None, graph=None, event=lambda *_args, **_kwargs: None
-        ),
+        SimpleNamespace(repo=tmp_path, canon=None, graph=None, event=lambda *_args, **_kwargs: None),
     )
     worker.adapter = None
     worker.commands = None
@@ -129,9 +127,11 @@ async def test_distinct_read_ranges_are_not_treated_as_repeats(
     ) -> agent.AgentAction:
         calls.append({item["function"]["name"] for item in tools})
         if step == 5:
-            return agent.AgentAction(action="done", reason="complete", summary="Reviewed distinct ranges")
+            return agent.AgentAction(
+                action="done", reason="complete", summary="Reviewed distinct ranges"
+            )
         return agent.AgentAction(
-            action="read", path="worker.py", start=step * 10, end=step * 10 + 9
+            action="read", reason="inspect range", path="worker.py", start=step * 10, end=step * 10 + 9
         )
 
     async def execute(action: agent.AgentAction) -> str:
