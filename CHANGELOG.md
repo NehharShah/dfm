@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-11-19
+
 ### Fixed
 
 - With little free memory, DFM loaded the local coder with an 8k context, and requests then
