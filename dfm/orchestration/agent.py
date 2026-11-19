@@ -216,6 +216,10 @@ ANSWER_TOOLS: tuple[dict[str, Any], ...] = (
         "give_up", "The repository does not contain the answer; say what is missing.", summary="str"
     ),
 )
+# A final turn may only finish with an answer or explicitly give up.
+ANSWER_FINISH_TOOLS = tuple(
+    tool for tool in ANSWER_TOOLS if tool["function"]["name"] in {"done", "give_up"}
+)
 
 
 @dataclass(frozen=True)
@@ -839,30 +843,61 @@ class AgentLoop:
             shown = untrusted_block(f"{action.action}-result", shown)
         self.history.append(f"Step {step}: {action.action} ({action.reason})\n{shown}")
 
+    def _incomplete_answer(self, reason: str, steps: int) -> Answer:
+        """Report an incomplete investigation, without claiming unverified findings."""
+        actions = [entry.splitlines()[0][:180] for entry in self.history[-5:]]
+        activity = "\n".join(f"- {redact_text(item)}" for item in actions)
+        text = f"Could not finish the repository investigation: {reason}."
+        if activity:
+            text += f"\n\nRecent actions (not verified conclusions):\n{activity}"
+        return Answer("unanswered", text, steps)
+
     async def answer(self, question: str) -> Answer:
-        """Answer a question by looking at the repository: read, search, read-only commands
-        and (read-only) tests; never an edit. Use with `read_only=True, services=False`."""
+        """Answer from read-only evidence, reserving the final step for synthesis."""
+        # The loop can be reused across interactive requests. Old observations must not
+        # redirect a new question, and compacted history must not leak across turns.
+        self.history.clear()
+        self.compacted.clear()
+        self.struggling = False
         self.rt.event("user_request", text=question)
         self.intel = await gather(self.rt.repo, self.rt.canon, self.rt.graph)
         self.adapter = select_adapter(self.rt.repo, self.intel.canon)
         if self.adapter is not None:
             self.commands = self.adapter.commands(self.rt.repo, self.intel.canon)
         self.started = time.monotonic()
+        # Repetition includes the observation: the same query can legitimately yield new
+        # evidence, and differing read ranges remain separate pagination requests.
+        seen: set[tuple[object, ...]] = set()
+        repeats = 0
         for step in range(1, self.max_steps + 1):
             if self.coder is not None and self.coder.tokens_out >= self.token_budget:
-                return Answer("failed", f"token budget used up ({self.coder.tokens_out})", step)
+                return self._incomplete_answer("output token budget exhausted", step)
             if self.out_of_time():
-                return Answer("failed", self.time_limit_summary(), step)
+                return self._incomplete_answer(self.time_limit_summary(), step)
+            finish = step == self.max_steps or repeats >= 2
+            instructions = ANSWER_INSTRUCTIONS
+            tools = ANSWER_TOOLS
+            if finish:
+                instructions += (
+                    "\nFinish now. Do not request any more tools. Use done with an "
+                    "evidence-based answer, or give_up with the remaining unknowns. "
+                    "Do not invent facts or claim inaccessible files were inspected."
+                )
+                tools = ANSWER_FINISH_TOOLS
             try:
                 action = await self._next_action(
-                    question, step, instructions=ANSWER_INSTRUCTIONS, tools=ANSWER_TOOLS
+                    question, step, instructions=instructions, tools=tools
                 )
             except ModelError as exc:
                 self.rt.event("failure", stage="answer", error=f"coding model failed: {exc}")
-                return Answer("failed", f"coding model failed: {exc}", step)
+                return self._incomplete_answer(f"coding model failed: {exc}", step)
             if action.action in {"done", "give_up"}:
                 status = "answered" if action.action == "done" else "unanswered"
                 return Answer(status, action.summary or action.reason, step)
+            if finish:
+                # Even a model that ignores the restricted tool schema cannot execute
+                # another action on the final turn.
+                return self._incomplete_answer("model did not produce a final answer", step)
             if action.action not in _ANSWER_ACTIONS:
                 observation = "refused: nothing can be changed while answering a question"
             elif action.action == "run" and not self._read_only_command(action.command or ""):
@@ -873,7 +908,25 @@ class AgentLoop:
                 except ToolError as exc:
                     observation = f"error: {exc}"
             self._observe(step, action, observation)
-        return Answer("failed", f"no answer after {self.max_steps} steps", self.max_steps)
+            signature = (
+                action.action,
+                action.path,
+                action.start,
+                action.end,
+                action.pattern,
+                action.command,
+                observation[:2000],
+            )
+            if signature in seen:
+                repeats += 1
+                self.history.append(
+                    "No new evidence from this repeated action. Summarize the "
+                    "original question from available evidence or explain the blocker."
+                )
+            else:
+                repeats = 0
+                seen.add(signature)
+        return self._incomplete_answer("step budget exhausted", self.max_steps)
 
     def out_of_time(self) -> bool:
         return time.monotonic() - self.started >= self.time_limit_s
