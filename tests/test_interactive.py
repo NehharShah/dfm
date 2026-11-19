@@ -184,6 +184,8 @@ async def test_questions_without_a_model_answer_from_facts(home: Path, repo: Pat
         ("add a docstring to add()", "task"),
         ("review my changes", "review"),
         ("explain this repository", "question"),
+        ("explain failing tests", "question"),
+        ("plan how to add caching", "plan"),
         ("what were we doing yesterday", "question"),
         ("hello there", "question"),
     ],

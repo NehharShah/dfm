@@ -9,11 +9,13 @@ from dfm.routing.router import (
     Tier,
     is_resume_request,
 )
-from dfm.routing.routes import Route
+from dfm.routing.routes import EDITING_INTENTS, Intent, Route
 
 __all__ = [
     "CODER_ROUTES",
+    "EDITING_INTENTS",
     "Adjuster",
+    "Intent",
     "Route",
     "RouteDecision",
     "Router",

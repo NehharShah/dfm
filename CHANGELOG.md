@@ -5,6 +5,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Fixed
+
+- A question that mentioned an edit verb or failing tests (`explain failing tests`, `why are
+  the tests failing`, `what does add() do`, `how does this update the cache?`) ran the editing
+  agent loop. Requests now carry a typed intent: questions and `plan ...` are read-only, and
+  a question followed by an instruction (`where is X defined? rename it`) is still a change.
+  Text that is a question only by its `?` is answered read-only with a note about `/do`. The
+  intent is in the session trace and counted in `dfm profile`; policy never reads it (#18).
+
 ## [0.0.7] - 2026-11-19
 
 ### Fixed
