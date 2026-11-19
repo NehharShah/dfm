@@ -147,3 +147,19 @@ async def test_router_survives_apple_outage() -> None:
     assert deterministic.route is Route.TOOLS_ONLY
     fallback = await router.route("ponder the module boundaries")
     assert fallback.source == "fallback"
+
+
+async def test_a_prompt_too_long_for_every_coder_stays_a_context_error() -> None:
+    # the agent loop shortens the prompt and retries on this error, so the pool must keep it
+    pool = ModelPool(
+        primary=Fake("dfm-primary", ContextLimitExceeded("too long")),
+        small=Fake("dfm-small", ContextLimitExceeded("too long")),
+    )
+    with pytest.raises(ContextLimitExceeded, match="dfm-primary"):
+        await pool.coder("primary").generate(REQ)
+    mixed = ModelPool(
+        primary=Fake("dfm-primary", ContextLimitExceeded("too long")),
+        small=Fake("dfm-small", ModelUnavailable("off")),
+    )
+    with pytest.raises(ModelUnavailable):
+        await mixed.coder("primary").generate(REQ)

@@ -11,7 +11,7 @@ from dfm.execution import ExecutionEnvironment
 from dfm.models import GenerateRequest, ModelUnavailable
 from dfm.models.mlx import LocalModelSpec, MLXModel, discovery, mlx_available
 from dfm.models.mlx.discovery import GB, choose, describe_dir, discover, usable
-from dfm.models.resources import ModelResourceManager, ResourceSnapshot
+from dfm.models.resources import MIN_CODER_CONTEXT, ModelResourceManager, ResourceSnapshot
 from dfm.routing import Route, RouteDecision, RoutingContext
 
 # Real mlx_supports and mlx_available, captured before any test patches them
@@ -133,6 +133,29 @@ def test_admission_ladder(tmp_path: Path) -> None:
     assert reduced.decision == "reduce_context" and reduced.context < 131072
     assert manager.admit(big, 32768, small=small, snap=snap(15)).decision == "use_small"
     assert manager.admit(big, 32768, snap=snap(10)).decision == "deny"
+
+
+def test_admission_never_reduces_a_coder_below_16k(tmp_path: Path) -> None:
+    # an 8k context passed admission and the agent then ran out of room at step 6
+    big = describe_dir(fake_model_dir(tmp_path / "x", "big", gb=15))
+    small = describe_dir(fake_model_dir(tmp_path / "y", "small", gb=3))
+    assert big is not None and small is not None
+    manager = ModelResourceManager(runner({}))
+    headroom = 4.0  # the floor for a 48 GB machine
+    between = (big.memory_gb(8192) + big.memory_gb(16384)) / 2  # fits 8k, not 16k
+    tight = ResourceSnapshot(int(48 * GB), int((between + headroom) * GB), 0, 0)
+    assert MIN_CODER_CONTEXT == 16384
+    denied = manager.admit(big, 32768, snap=tight)
+    assert denied.decision == "deny"
+    assert "needs" in denied.reason and "16k context" in denied.reason
+    assert "close apps" in denied.reason
+    assert manager.admit(big, 32768, small=small, snap=tight).decision == "use_small"
+    roomy = ResourceSnapshot(int(48 * GB), int((big.memory_gb(16384) + headroom) * GB), 0, 0)
+    reduced = manager.admit(big, 32768, snap=roomy)
+    assert (reduced.decision, reduced.context) == ("reduce_context", 16384)
+    assert "16k from 32k" in reduced.reason
+    # a context the developer configured below the floor is theirs to choose
+    assert manager.admit(big, 8192, snap=tight).decision == "ok"
 
 
 def test_router_adjuster_downgrades(tmp_path: Path) -> None:

@@ -5,6 +5,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Fixed
+
+- With little free memory, DFM loaded the local coder with an 8k context, and requests then
+  failed partway through with `prompt is N tokens; limit 8192 minus 4096 for the answer`. DFM
+  now reduces the context no further than 16k, the least the agent works in: below that it uses
+  dfm-small, or refuses to load and says how much memory the model needs. A reduced context is
+  shown in the session.
+- A step whose prompt did not fit the model's context ended the request. DFM now shortens the
+  history and retries the step once, and otherwise says to free memory and start a new session.
+- The interactive session printed a failed request's error twice. It now prints it once, and says
+  when it switched to dfm-small.
+
 ## [0.0.6] - 2026-11-01
 
 ### Changed

@@ -53,3 +53,21 @@ on unload. The file lives under `$XDG_CACHE_HOME/dfm/kv` and is write-denied to 
 (ADR 0010). Cancellation is cooperative: a `cancel` message on the worker's stdin (read on a
 thread) stops generation after the current token, so Ctrl-C and timeouts keep the loaded model
 instead of killing the worker; it is killed only if it does not answer within five seconds.
+
+Addendum (2026-11-11, first use of 0.0.6): with about 18 GB free, admission loaded a 27B coder
+at an 8k context (it halved down to a 4k floor), and a question failed at step 6 with
+`prompt is 4627 tokens; limit 8192 minus 4096 for the answer`. Nothing said the context was
+reduced. Changes:
+
+- **A 16k floor** (`MIN_CODER_CONTEXT`). The agent loop's repository context, history,
+  instructions and tools, plus the tokens kept for the answer, need about that much. Admission
+  reduces no further: it picks dfm-small at 16k if that fits, or refuses with the memory the
+  model needs at 16k and the memory available. A context the developer configured below 16k is
+  still honoured.
+- **A reduced context is shown**: the runtime records it as a `note` event, which the
+  interactive session prints.
+- **One retry on overflow.** The pool raises `ContextLimitExceeded` when every coder rejected the
+  prompt as too long. The agent loop then folds every earlier step to one line, halves the
+  repository context and retries the step once. If that fails too, the task ends with what to do.
+- The session prints a loop failure once (the `failure` event of the `act` and `answer` stages
+  is the outcome it already prints) and says when the coder fell back to dfm-small.

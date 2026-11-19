@@ -424,6 +424,46 @@ def test_display_says_why_tests_did_not_run(tmp_path: Path) -> None:
     )
 
 
+def test_display_shows_a_loop_failure_once_and_a_fallback(tmp_path: Path) -> None:
+    out = io.StringIO()
+    display = Display(Console(file=out, width=140), tmp_path)
+    # the session prints the loop's own failure as the answer or the outcome; once is enough
+    display.event("failure", {"stage": "answer", "error": "coding model failed: too long"})
+    display.event("failure", {"stage": "act", "error": "coding model failed: too long"})
+    assert out.getvalue() == ""
+    display.event("recovery", {"failed": "dfm-primary", "fallback": "none", "reason": "x"})
+    assert out.getvalue() == ""  # nothing took over: the failure follows
+    display.event(
+        "recovery",
+        {"failed": "dfm-primary", "fallback": "dfm-small", "reason": "not enough memory"},
+    )
+    assert "dfm-primary failed, using dfm-small: not enough memory" in out.getvalue()
+
+
+async def test_a_reduced_context_is_noted(home: Path, repo: Path) -> None:
+    from dfm.models.resources import Admission
+
+    rt = Runtime.create(repo, request="", mode="interactive")
+    seen: list[tuple[str, dict[str, object]]] = []
+    rt.listeners.append(lambda kind, payload: seen.append((kind, payload)))
+    rt.admitted("dfm-primary", Admission("ok", 32768, 20.5, 25.0, "fits"))
+    rt.admitted("dfm-primary", Admission("deny", 0, 20.5, 10.0, "not enough memory"))
+    reason = "context reduced to 16k from 32k to fit 18.6 GB available after headroom"
+    rt.admitted("dfm-primary", Admission("reduce_context", 16384, 18.5, 18.6, reason))
+    await rt.close("completed")
+    assert seen == [
+        (
+            "note",
+            {
+                "text": f"dfm-primary: {reason}",
+                "model": "dfm-primary",
+                "admission": "reduce_context",
+                "context": 16384,
+            },
+        )
+    ]
+
+
 # ---------------------------------------------------------------- leaving, and typing ahead
 
 

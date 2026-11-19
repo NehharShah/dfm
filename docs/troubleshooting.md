@@ -6,7 +6,9 @@ access.
 | Symptom | Cause and fix |
 |---|---|
 | `mlx-lm not installed` | DFM installs `mlx-lm` on Apple Silicon with Python 3.12 to 3.14. On Python 3.15 it cannot yet (`sentencepiece` has no 3.15 build): reinstall on 3.14 with `uv tool install --force --python 3.14 dfm-agent` or `pipx reinstall --python python3.14 dfm-agent`. On an install older than 0.0.6 without `[mlx]`, `uv tool upgrade dfm-agent` or `pipx upgrade dfm-agent` adds it. Without it DFM answers questions but cannot edit. |
-| `not enough memory for a local coder (N GB available after headroom)` | The model does not fit in free memory. Close large apps, or choose a smaller model with `dfm setup`. A 20B model needs about 13 GB plus headroom. |
+| `not enough memory for a local coder (N GB available after headroom): … needs M GB for a 16k context` | The model does not fit in free memory at 16k, the smallest context the agent works in. Close large apps (`dfm models` shows the budget now), or download a smaller model and choose it with `dfm setup` or `dfm models use`. A 27B model at 4-bit needs about 18.5 GB at 16k. |
+| `context reduced to 16k from 32k to fit N GB …` | The model loaded with a smaller context because memory was short. It works, with less room per step. Close apps and start a new session for the full context. |
+| `prompt is N tokens; limit L minus A for the answer` | A step did not fit the model's context even after DFM shortened the history. Free memory and start a new session, so the model loads with a larger context. |
 | `no coding model available (run dfm setup …)` | No local coder is configured. Run `dfm setup`. |
 | Apple FM unavailable | `fm available` must report the system model as ready (Apple Intelligence enabled). Without it, DFM routes by rules and uses the local coder for text. |
 | `refused by policy: … not approved` in a non-interactive run | Without a terminal, ask means deny. Run interactively, or allow the category in `~/.config/dfm/config.toml` ([policy](policy.md)). |

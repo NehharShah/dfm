@@ -18,7 +18,7 @@ import platform
 import signal
 import sys
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -42,7 +42,7 @@ from dfm.models.thermal import monitor
 from dfm.security.sandbox import SANDBOX_EXEC, available, build_profile
 
 if TYPE_CHECKING:
-    from dfm.models.resources import ModelResourceManager
+    from dfm.models.resources import Admission, ModelResourceManager
 
 Role = Literal["primary", "small"]
 
@@ -127,6 +127,8 @@ class MLXModel:
         self._idle_task: asyncio.Task[None] | None = None
         self.stats: dict[str, Any] = {}
         self.resources = resources
+        # told how each load was admitted (the runtime traces it and shows a reduced context)
+        self.on_admission: Callable[[str, Admission], None] | None = None
         self.thermal = monitor()
         self.native_tools = False  # learned at load: the chat template takes tool definitions
 
@@ -271,6 +273,8 @@ class MLXModel:
                     self.resources.admit, candidate, self.spec.context
                 )
                 self.stats["admission"] = admission.reason
+                if self.on_admission is not None:
+                    self.on_admission(self.name, admission)
                 if admission.decision in {"deny", "use_small"}:
                     raise ModelUnavailable(f"{self.name}: {admission.reason}")
                 if admission.decision == "reduce_context":
