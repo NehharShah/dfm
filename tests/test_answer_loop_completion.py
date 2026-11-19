@@ -16,8 +16,12 @@ def loop(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> agent.AgentLoop:
     monkeypatch.setattr(agent, "gather", gather_stub)
     monkeypatch.setattr(agent, "select_adapter", lambda *_args: None)
     worker = object.__new__(agent.AgentLoop)
-    worker.rt = SimpleNamespace(
-        repo=tmp_path, canon=None, graph=None, event=lambda *_args, **_kwargs: None
+    object.__setattr__(
+        worker,
+        "rt",
+        SimpleNamespace(
+            repo=tmp_path, canon=None, graph=None, event=lambda *_args, **_kwargs: None
+        ),
     )
     worker.adapter = None
     worker.commands = None
@@ -27,9 +31,13 @@ def loop(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> agent.AgentLoop:
     worker.history = ["Step from previous question: unrelated"]
     worker.compacted = ["- previous question"]
     worker.struggling = False
-    worker.out_of_time = lambda: False
-    worker._observe = lambda step, action, result: worker.history.append(
-        f"Step {step}: {action.action} ({action.reason})\n{result}"
+    monkeypatch.setattr(worker, "out_of_time", lambda: False)
+    monkeypatch.setattr(
+        worker,
+        "_observe",
+        lambda step, action, result: worker.history.append(
+            f"Step {step}: {action.action} ({action.reason})\n{result}"
+        ),
     )
     return worker
 
@@ -44,7 +52,9 @@ async def test_repeated_read_forces_final_answer(loop: agent.AgentLoop) -> None:
         names = {item["function"]["name"] for item in tools}
         calls.append(names)
         if names == {"done", "give_up"}:
-            return agent.AgentAction(action="give_up", reason="blocked", summary="Requested logs are inaccessible")
+            return agent.AgentAction(
+                action="give_up", reason="blocked", summary="Requested logs are inaccessible"
+            )
         return agent.AgentAction(action="read", reason="inspect", path="worker.py", start=1, end=100)
 
     async def execute(_action: agent.AgentAction) -> str:
@@ -71,7 +81,9 @@ async def test_last_step_is_reserved_for_final_answer(loop: agent.AgentLoop) -> 
         names = {item["function"]["name"] for item in tools}
         calls.append(names)
         if names == {"done", "give_up"}:
-            return agent.AgentAction(action="done", reason="complete", summary="Found symbol in file.py:1")
+            return agent.AgentAction(
+                action="done", reason="complete", summary="Found symbol in file.py:1"
+            )
         return agent.AgentAction(action="search", reason="locate", pattern="symbol")
 
     async def execute(_action: agent.AgentAction) -> str:
