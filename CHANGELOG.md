@@ -13,6 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   a question followed by an instruction (`where is X defined? rename it`) is still a change.
   Text that is a question only by its `?` is answered read-only with a note about `/do`. The
   intent is in the session trace and counted in `dfm profile`; policy never reads it (#18).
+- `outline the steps to ...` ran the editing loop instead of giving a plan, `how would you
+  implement ...` was read as a plain question, and `audit the current diff` was not a review.
+  A routing benchmark (`tests/routing_cases.py`, 127 terse instructions, 87% right) lists the
+  instructions the router still gets wrong, all of them failing safe (#18).
 
 ## [0.0.7] - 2026-11-19
 

@@ -97,7 +97,7 @@ _QUESTION_OPENING = (
 )
 # "can you fix the failing test?" is a polite request, not a question.
 _POLITE_REQUEST = r"^\s*(please\s+)?(can|could|would|will)\s+you\b"
-_PLAN = r"^\s*(please\s+)?plan\b|\b(make|write|draft|give me|come up with|create)\s+(me\s+)?(a\s+)?plan\b"
+_PLAN = r"^\s*(please\s+)?plan\b|\b(make|write|draft|give me|come up with|create)\s+(me\s+)?(a\s+)?plan\b|^\s*how would you\b|^\s*(please\s+)?(outline|sketch)\s+(the\s+)?(steps|plan|approach)\b"
 _RUN = r"^\s*(run|rerun|re-run)\b"
 
 
@@ -142,7 +142,7 @@ _EDIT_VERBS = (
 # A question followed by an instruction ("where is parse_config defined? rename it") is a change.
 _THEN_CHANGE = r"([.?!;]\s+(then\s+|also\s+|please\s+)?|\b(and\s+)?then\s+)" + _EDIT_VERBS
 _INVESTIGATE = r"\b(debug|investigate|diagnose|why\s+(is|does|do|did)|figure out|root cause)\b"
-_REVIEW = r"\b(review|audit|check)\s+(the\s+|my\s+|this\s+|current\s+)?(diff|changes|pr|pull request|code|branch|commit)\b|\bcode review\b|^\s*review\b"
+_REVIEW = r"\b(review|audit|check)\s+((the|my|this|current)\s+)*(diff|changes|pr|pull request|code|branch|commit)\b|\bcode review\b|^\s*review\b"
 _CI = r"\b(ci|pipeline|workflow|github actions|build is (red|failing|broken))\b"
 _TESTS = r"\b(failing|broken|red|flaky)\s+(tests?|specs?|suite)\b|\btests?\s+(are\s+|is\s+)?(failing|broken)\b|\b(test\s+)?failures\b|\bmake\s+(the\s+)?tests?\s+pass\b"
 _ISSUE = r"\b(issue|ticket)\s*#?\d+|#\d+\b"
