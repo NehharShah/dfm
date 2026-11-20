@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-11-20
+
 ### Fixed
 
 - A command that timed out reached the model as `exit -2` with no output, so a hang looked like
@@ -16,9 +18,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   tells the resumed session which ones already ran, and does not run an identical one again
   unless the developer decides. `dfm profile` also shows how many times a reply had to be
   retried for its format (#19).
-
-### Fixed
-
 - One unusable model reply (prose instead of an action) ended the whole task with "coding model
   failed". It is now told what was wrong, nothing is run, and the model gets two more tries in a
   row before the task ends saying so. A model that repeats the same action with the same result
