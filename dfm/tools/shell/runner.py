@@ -9,7 +9,9 @@ all of them take this path, so none of them can skip policy.
 
 from __future__ import annotations
 
+import asyncio
 import shlex
+import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -23,7 +25,13 @@ from dfm.secrets import redact_argv
 from dfm.tools.errors import ToolError
 from dfm.tools.kubernetes import kube_context
 from dfm.tools.shell.classify import SHELL_TOKENS, Classification, classify, shell_tokens
-from dfm.tools.shell.rules import option_value
+from dfm.tools.shell.rules import git_subcommand, option_value
+
+# Git subcommands that move HEAD, merge or rewrite the checkout: with uncommitted work present
+# the approver is told what is there
+_MOVES_HEAD = frozenset(
+    {"checkout", "switch", "pull", "merge", "rebase", "cherry-pick", "reset", "restore", "stash"}
+)
 
 Wrap = Callable[[Sequence[str], ExecutionEnvironment, Classification], Sequence[str]]
 
@@ -86,6 +94,52 @@ class CommandRunner:
         self._emit("note", text=f"kube context {ctx.name}, namespace {namespace}")
         return replace(action, target=where, summary=f"[{where}] {action.summary}")
 
+    async def _with_worktree_note(
+        self, action: ProposedAction, argv: Sequence[str]
+    ) -> ProposedAction:
+        """A Git command that moves HEAD or merges names the uncommitted work it would carry."""
+        if not argv or Path(argv[0]).name != "git":
+            return action
+        sub, _ = git_subcommand(list(argv))
+        if sub not in _MOVES_HEAD:
+            return action
+        note = await asyncio.to_thread(self._dirty_note)
+        return replace(action, note=note) if note else action
+
+    def _dirty_note(self) -> str | None:
+        try:
+            out = subprocess.run(  # noqa: S603
+                [  # noqa: S607
+                    "git",
+                    "--no-optional-locks",
+                    "-c",
+                    "core.fsmonitor=false",
+                    "-C",
+                    str(self.env.repo_root),
+                    "status",
+                    "--porcelain",
+                    "-uall",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+                env=self.env.child_env(),
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        lines = [line for line in out.stdout.splitlines() if line.strip()]
+        if out.returncode != 0 or not lines:
+            return None
+        names = [line[3:] for line in lines[:5]]
+        more = f" and {len(lines) - 5} more" if len(lines) > 5 else ""
+        untracked = sum(1 for line in lines if line.startswith("??"))
+        tracked = len(lines) - untracked
+        return (
+            f"{tracked} modified and {untracked} untracked files in your working tree "
+            f"({', '.join(names)}{more}); they are not committed, so this can carry or lose them"
+        )
+
     async def run(
         self,
         command: str | Sequence[str],
@@ -128,6 +182,7 @@ class CommandRunner:
         actions = classification.to_actions(proposed_by or self.proposed_by)
         for part, action in zip(classification.parts, actions, strict=True):
             action = self._with_kube_context(action, part.argv)
+            action = await self._with_worktree_note(action, part.argv)
             verdict = await self.policy.authorize(action)
             verdicts.append(verdict)
             if verdict.decision is not Decision.ALLOW:
