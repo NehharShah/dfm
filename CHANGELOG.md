@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-11-20
+
 ### Changed
 
 - Without a terminal (pipes, CI, `dfm ci`), a command that needs approval is refused with the ways
