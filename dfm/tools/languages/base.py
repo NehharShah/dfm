@@ -56,6 +56,8 @@ class LspServerSpec:
     language_id: str
     extensions: tuple[str, ...]
     init_options: dict[str, Any] = field(default_factory=lambda: {})
+    # sends `experimental/serverStatus` and answers empty until it reports `quiescent`
+    reports_status: bool = False
 
 
 class LanguageAdapter(Protocol):

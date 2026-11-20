@@ -124,7 +124,9 @@ class RustAdapter:
 
     def lsp_server(self) -> LspServerSpec | None:
         if runs("rust-analyzer"):  # often a rustup proxy without the component behind it
-            return LspServerSpec("Rust", ("rust-analyzer",), "rust", self.extensions)
+            return LspServerSpec(
+                "Rust", ("rust-analyzer",), "rust", self.extensions, reports_status=True
+            )
         return None
 
     def tools(self) -> dict[str, str | None]:

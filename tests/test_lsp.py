@@ -11,7 +11,7 @@ from dfm.tools.languages import LspServerSpec, PythonAdapter
 from tests import repo_fixtures as fx
 
 FAKE_SERVER = r"""
-import json, sys
+import json, sys, threading, time
 
 def read():
     length = None
@@ -26,15 +26,27 @@ def read():
             length = int(line.split(":")[1])
     return json.loads(sys.stdin.buffer.read(length))
 
+LOCK = threading.Lock()
+
 def send(msg):
     body = json.dumps(msg).encode()
-    sys.stdout.buffer.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
-    sys.stdout.buffer.flush()
+    with LOCK:
+        sys.stdout.buffer.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
+        sys.stdout.buffer.flush()
 
 def loc(uri, line, col):
     return {"uri": uri, "range": {"start": {"line": line, "character": col}, "end": {"line": line, "character": col + 3}}}
 
 CRASH = "--crash" in sys.argv
+# --status=N: like rust-analyzer, report not quiescent, answer empty, go quiescent after N s
+STATUS = next((float(a.split("=")[1]) for a in sys.argv if a.startswith("--status=")), None)
+# --content-modified: drop the first definition request with ContentModified (-32801)
+CONTENT_MODIFIED = "--content-modified" in sys.argv
+quiescent_at = 0.0
+
+def status(quiescent):
+    send({"jsonrpc": "2.0", "method": "experimental/serverStatus", "params": {"health": "ok", "quiescent": quiescent}})
+
 while True:
     msg = read()
     method, mid = msg.get("method"), msg.get("id")
@@ -46,8 +58,17 @@ while True:
         uri = params["textDocument"]["uri"]
         send({"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": {"uri": uri, "diagnostics": [
             {"range": {"start": {"line": 1, "character": 4}, "end": {"line": 1, "character": 9}}, "severity": 1, "message": "bad return", "code": "E1"}]}})
+    elif method == "initialized" and STATUS is not None:
+        quiescent_at = time.monotonic() + STATUS
+        status(False)
+        threading.Timer(STATUS, status, (True,)).start()
     elif CRASH and method == "textDocument/definition":
         sys.exit(3)
+    elif method == "textDocument/definition" and time.monotonic() < quiescent_at:
+        send({"jsonrpc": "2.0", "id": mid, "result": []})
+    elif method == "textDocument/definition" and CONTENT_MODIFIED:
+        CONTENT_MODIFIED = False
+        send({"jsonrpc": "2.0", "id": mid, "error": {"code": -32801, "message": "content modified"}})
     elif method == "textDocument/definition":
         send({"jsonrpc": "2.0", "id": mid, "result": [loc(params["textDocument"]["uri"], 0, 4)]})
     elif method == "textDocument/references":
@@ -90,10 +111,16 @@ def env(tmp_path: Path) -> ExecutionEnvironment:
     )
 
 
-def fake_spec(tmp_path: Path, *extra: str) -> LspServerSpec:
+def fake_spec(tmp_path: Path, *extra: str, reports_status: bool = False) -> LspServerSpec:
     script = tmp_path / "fake_lsp.py"
     script.write_text(FAKE_SERVER)
-    return LspServerSpec("Python", (sys.executable, str(script), *extra), "python", (".py",))
+    return LspServerSpec(
+        "Python",
+        (sys.executable, str(script), *extra),
+        "python",
+        (".py",),
+        reports_status=reports_status,
+    )
 
 
 async def test_operations_against_fake_server(env: ExecutionEnvironment, tmp_path: Path) -> None:
@@ -115,6 +142,29 @@ async def test_operations_against_fake_server(env: ExecutionEnvironment, tmp_pat
         ]
         with pytest.raises(LspError, match="not supported"):
             await client.implementation("calc.py", 1, 5)
+
+
+async def test_waits_for_a_status_reporting_server_to_load(
+    env: ExecutionEnvironment, tmp_path: Path
+) -> None:
+    """rust-analyzer answers empty while it loads the workspace; the client holds requests
+    until the server reports `quiescent`."""
+    spec = fake_spec(tmp_path, "--status=0.5", reports_status=True)
+    async with LspClient(spec, env) as client:
+        assert [str(d) for d in await client.definition("calc.py", 6, 5)] == ["calc.py:1:5"]
+
+
+async def test_stops_waiting_for_a_server_that_never_settles(
+    env: ExecutionEnvironment, tmp_path: Path
+) -> None:
+    spec = fake_spec(tmp_path, "--status=60", reports_status=True)
+    async with LspClient(spec, env, request_timeout=1) as client:
+        assert await client.definition("calc.py", 6, 5) == []  # partial, not blocked
+
+
+async def test_retries_content_modified(env: ExecutionEnvironment, tmp_path: Path) -> None:
+    async with LspClient(fake_spec(tmp_path, "--content-modified"), env) as client:
+        assert [str(d) for d in await client.definition("calc.py", 6, 5)] == ["calc.py:1:5"]
 
 
 async def test_crash_and_missing_server(env: ExecutionEnvironment, tmp_path: Path) -> None:
