@@ -13,6 +13,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   edit to `.git`, `.dfm` or `.env`. A test covers a two-file change whose first attempt fails the
   tests and is repaired from the failure output (#21).
 
+### Security
+
+- Redaction now covers the rules Reflex added: `--password VALUE` on a command line, Docker
+  (`dckr_pat_`), SendGrid and Hugging Face tokens, and Discord webhook URLs, everywhere; card
+  numbers (issuer format and Luhn check) and IPv4 and IPv6 addresses in stored traces only, so
+  a model still sees addresses in the code it edits. Loopback, `0.0.0.0` and four-part version
+  numbers are left alone. The `hf-token` rule is now `huggingface-token`, as in Reflex.
+
 ## [0.0.10] - 2026-11-20
 
 ### Changed

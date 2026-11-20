@@ -15,6 +15,7 @@ into files (see `contains_redaction`).
 """
 
 import getpass
+import ipaddress
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -99,6 +100,13 @@ _RULES: list[_Rule] = [
         lambda m: f"{m.group(1)}[REDACTED]",
     ),
     _r(
+        "password-flag",
+        # mysql --password hunter2. Not --password-stdin, a following flag, or a <placeholder>.
+        r"(--(?:password|passwd|pwd|pass))\s+(?!\[REDACTED|-|<)(\"[^\"\n]*\"|'[^'\n]*'|[^\s\"']+)",
+        lambda m: f"{m.group(1)} [REDACTED]",
+        flags=re.I,
+    ),
+    _r(
         "authorization-header",
         r"\b(authorization\s*:\s*)(bearer|basic|token|bot)\s+[^\s\"']+",
         lambda m: f"{m.group(1)}{m.group(2)} [REDACTED]",
@@ -155,7 +163,19 @@ _RULES: list[_Rule] = [
     _r("twilio-key", r"\bSK[0-9a-f]{32}\b", "[REDACTED_API_KEY]"),
     _r("age-secret-key", r"\bAGE-SECRET-KEY-1[A-Z0-9]{50,}\b", "[REDACTED PRIVATE KEY]"),
     _r("npm-token", r"\bnpm_[A-Za-z0-9]{36}\b", "[REDACTED_TOKEN]"),
-    _r("hf-token", r"\bhf_[A-Za-z0-9]{30,}\b", "[REDACTED_TOKEN]"),
+    _r("huggingface-token", r"\bhf_[A-Za-z0-9]{30,}", "[REDACTED_TOKEN]"),
+    _r("docker-token", r"\bdckr_pat_[A-Za-z0-9_-]{20,}", "[REDACTED_TOKEN]"),
+    _r(
+        "sendgrid-key",
+        r"\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])",
+        "[REDACTED_API_KEY]",
+    ),
+    _r(
+        "discord-webhook",
+        r"\bhttps?://(?:[a-z]+\.)?discord(?:app)?\.com/api(?:/v\d+)?/webhooks/\d+/[A-Za-z0-9_-]+",
+        "[REDACTED_WEBHOOK]",
+        flags=re.I,
+    ),
     _r(
         "jwt",
         r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}",
@@ -170,6 +190,33 @@ _RULES: list[_Rule] = [
             if len(m.group(2).split()) not in {12, 15, 18, 21, 24}
             else f"{m.group(1)}[REDACTED_SEED_PHRASE]"
         ),
+    ),
+    _r(
+        "card-number",
+        # Whole numbers or the usual groupings only; a free mix of separators would run into
+        # nearby numbers. Trace only: a long number in code is data the model may need.
+        r"(?<![\w./-])(?:\d{13,19}|\d{4}([ -])\d{4}\1\d{4}\1\d{4}(?:\1\d{3})?"
+        r"|\d{4}([ -])\d{6}\2\d{4,5})(?![\w-]|\.\d)",
+        lambda m: "[REDACTED_CARD]" if _is_card_number(m.group(0)) else m.group(0),
+        _TRACE,
+    ),
+    _r(
+        "ipv6",
+        # Before IPv4, so an IPv4-mapped address (::ffff:1.2.3.4) goes whole.
+        r"(?<![\w:.-])(?=[0-9a-f.]*:[0-9a-f.]*:)[0-9a-f:.]{1,44}[0-9a-f:](?![\w:-])",
+        lambda m: "[REDACTED_IP]" if _is_remote_ipv6(m.group(0)) else m.group(0),
+        _TRACE,
+        re.I,
+    ),
+    _r(
+        "ipv4",
+        # Four parts only, so 1.2.3 stays. A v, @ or "version" in front marks a four-part version.
+        r"(?<![\w:.@-])(?<!\bversion\s)(?<!\bversions\s)"
+        r"(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+        r"(?![\w-]|\.\d)",
+        lambda m: m.group(0) if _is_local_ipv4(m.group(0)) else "[REDACTED_IP]",
+        _TRACE,
+        re.I,
     ),
     _r(
         "dotenv-line",
@@ -199,6 +246,41 @@ _RULES: list[_Rule] = [
         lambda m: "[REDACTED_TOKEN]" if _mixed_case_and_digits(m.group(0)) else m.group(0),
     ),
 ]
+
+
+# The issuer prefixes and lengths of real card numbers, so most long numbers are never candidates.
+_CARD_FORMAT = re.compile(
+    r"(?:4(?:\d{12}|\d{15}|\d{18})|5[1-5]\d{14}|2(?:2[2-9]\d|[3-6]\d{2}|7[01]\d|720)\d{12}"
+    r"|3[47]\d{13}|3(?:0[0-5]|6\d)\d{11}|35\d{14}|6(?:011|5\d{2}|4[4-9]\d)\d{12})"
+)
+
+
+def _is_card_number(text: str) -> bool:
+    digits = re.sub(r"[ -]", "", text)
+    if not _CARD_FORMAT.fullmatch(digits):
+        return False
+    total = 0
+    for i, ch in enumerate(reversed(digits)):  # Luhn
+        d = int(ch)
+        total += d if i % 2 == 0 else (d * 2 - 9 if d > 4 else d * 2)
+    return total % 10 == 0
+
+
+def _is_local_ipv4(ip: str) -> bool:
+    """Not an address worth hiding: loopback and the "any address" every server binds to."""
+    return ip.startswith("127.") or ip == "0.0.0.0"  # noqa: S104 - a comparison, not a bind
+
+
+def _is_remote_ipv6(ip: str) -> bool:
+    """Compressed forms need a digit, so hex-only code paths like `abc::def` stay. Loopback
+    stays too."""
+    try:
+        ipaddress.IPv6Address(ip)
+    except ValueError:
+        return False
+    if re.fullmatch(r"::1?|(?:0{1,4}:){7}0{0,3}[01]", ip):
+        return False
+    return "::" not in ip or re.search(r"\d", ip) is not None
 
 
 def _mixed_case_and_digits(run: str) -> bool:

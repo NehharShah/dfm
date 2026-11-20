@@ -69,6 +69,11 @@ SECRETS: list[tuple[str, str]] = [
     ("dop_v1_" + "a1" * 32, "dop_v1_" + "a1" * 32),
     ("SK" + "b2" * 16, "SK" + "b2" * 16),
     ("AGE-SECRET-KEY-1" + "Q" * 58, "AGE-SECRET-KEY-1" + "Q" * 58),
+    # rules ported from Reflex
+    ("mysql -u root --password hunter2 app", "hunter2"),
+    ("dckr_pat_" + "i" * 27, "dckr_pat_" + "i" * 27),
+    ("SG." + "j" * 22 + "." + "k" * 43, "SG." + "j" * 22),
+    ("https://discord.com/api/webhooks/123456/abcDEF-_xyz", "abcDEF-_xyz"),
 ]
 
 
@@ -135,6 +140,42 @@ def test_trace_profile_also_redacts_identity() -> None:
     assert "ada@example.com" not in traced
     assert "/Users/ada" not in traced
     assert "FOO=[REDACTED]" in traced
+
+
+@pytest.mark.parametrize(
+    ("text", "secret"),
+    [
+        ("card 4111 1111 1111 1111 on file", "4111 1111 1111 1111"),
+        ("card 4111111111111111", "4111111111111111"),
+        ("connect to 203.0.113.7:22", "203.0.113.7"),
+        ("listen on 2001:db8::1", "2001:db8::1"),
+        ("mapped ::ffff:203.0.113.7", "203.0.113.7"),
+    ],
+)
+def test_trace_profile_redacts_cards_and_addresses(text: str, secret: str) -> None:
+    assert secret not in redact_text(text, Profile.TRACE)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "bind 127.0.0.1 and 0.0.0.0",
+        "listen on ::1",
+        "version 1.2.3.4",
+        "v1.2.3.4",
+        "order 4111111111111112",  # fails Luhn
+        "path abc::def",
+        "at 12:30:45",
+        "mysql --password-stdin",
+    ],
+)
+def test_trace_profile_keeps_local_addresses_and_non_secrets(text: str) -> None:
+    assert redact_text(text, Profile.TRACE) == text
+
+
+def test_context_profile_keeps_addresses_and_card_shaped_numbers() -> None:
+    text = "HOST = '203.0.113.7'\nTEST_CARD = 4111111111111111\n"
+    assert redact_text(text) == text
 
 
 def test_seed_phrase_word_counts() -> None:
