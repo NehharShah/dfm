@@ -112,3 +112,7 @@ def profile(
         f"  tool calls: {tools['commands']} commands ({tools['refused']} refused), {tools['file_reads']} reads, {tools['patches']} patches, {tools['test_runs']} test runs"
     )
     console.print(f"  steps: {data['steps']} · repairs: {data['repairs']}")
+    routing = cast(dict[str, int], data.get("routing") or {})
+    if routing:
+        shown = ", ".join(f"{name} {count}" for name, count in sorted(routing.items()))
+        console.print(f"  routing (intent per request): {shown}", markup=False)

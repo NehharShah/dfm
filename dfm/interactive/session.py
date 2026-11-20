@@ -31,7 +31,13 @@ from dfm.orchestration.plan import plan
 from dfm.orchestration.review import review
 from dfm.orchestration.runtime import Runtime
 from dfm.recovery import Checkpointer
-from dfm.routing import CODER_ROUTES, RouteDecision, RoutingContext, is_resume_request
+from dfm.routing import (
+    EDITING_INTENTS,
+    Intent,
+    RouteDecision,
+    RoutingContext,
+    is_resume_request,
+)
 from dfm.security.sandbox import Sandbox
 from dfm.tools.git.state import file_hash, is_git_repo
 from dfm.tools.shell.runner import CommandRunner
@@ -166,23 +172,30 @@ class InteractiveSession:
         kind = self.classify(text, decision)
         if kind == "review":
             await self.run_review()
+        elif kind == "plan":
+            await self.run_plan(text)
         elif kind == "question":
+            if decision.ambiguous:
+                self.display.note(
+                    "Read as a question, so nothing is edited. To change code, use /do or say "
+                    "what to change."
+                )
             await self.run_question(text, decision)
         else:
             await self.run_task(text, decision)
 
     @staticmethod
     def classify(text: str, decision: RouteDecision) -> TurnKind:
-        """Code work goes to the agent loop; reviews and everything else are read-only."""
+        """The editing path is for changes (code, Git state); a plan, a review and everything
+        else are read-only. The intent decides; command safety is policy's, not this."""
         if is_resume_request(text):
             return "question"
-        first = decision.reasons[0] if decision.reasons else ""
-        if first.startswith("review"):
+        intent = decision.effective_intent
+        if intent is Intent.REVIEW:
             return "review"
-        explains = first.startswith("repository explanation")
-        if decision.route in CODER_ROUTES and decision.source != "fallback" and not explains:
-            return "task"
-        return "question"
+        if intent is Intent.PLAN:
+            return "plan"
+        return "task" if intent in EDITING_INTENTS else "question"
 
     # ---------------------------------------------------------------- turns
 

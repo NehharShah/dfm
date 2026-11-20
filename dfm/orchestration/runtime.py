@@ -156,6 +156,8 @@ class Runtime:
                 "route_decision",
                 route=decision.route.value,
                 coder=decision.coder,
+                intent=decision.effective_intent.value,
+                ambiguous=decision.ambiguous,
                 source=decision.source,
                 confidence=decision.confidence,
                 reasons=list(decision.reasons),

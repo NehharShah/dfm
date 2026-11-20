@@ -13,7 +13,7 @@ from typing import Literal
 
 from dfm.models.base import GenerateRequest, Model, ModelError
 from dfm.models.structured import structured
-from dfm.routing.routes import Route
+from dfm.routing.routes import Intent, Route
 
 Tier = Literal["small", "primary"]
 Source = Literal["deterministic", "apple", "reflex", "override", "fallback", "resources"]
@@ -34,6 +34,19 @@ class RouteDecision:
     source: Source
     confidence: float
     coder: Tier | None = None
+    intent: Intent | None = None
+    # The text could be a question or a change; it was read as a question (read-only).
+    ambiguous: bool = False
+
+    @property
+    def effective_intent(self) -> Intent:
+        """The intent, or for a decision built without one the route's own reading: code work
+        proposed by a rule or a model is a change, anything else (and a fallback) is read-only."""
+        if self.intent is not None:
+            return self.intent
+        if self.route in CODER_ROUTES and self.source != "fallback":
+            return Intent.MODIFY
+        return Intent.INVESTIGATE
 
     def with_coder(self, tier: Tier, reason: str, source: Source) -> "RouteDecision":
         route = self.route
@@ -76,6 +89,18 @@ _GIT_MUTATION = (
 )
 
 
+# A request that opens with one of these asks to be told something, whatever verbs follow:
+# "how does this update the cache", "explain failing tests", "what does add() do".
+_QUESTION_OPENING = (
+    r"^\s*(explain|why|how|what|which|where|who|when|describe|summari[sz]e|walk me through|tell me|"
+    r"show me how|is|are|does|did|was|were|should|could you explain|can you explain)\b"
+)
+# "can you fix the failing test?" is a polite request, not a question.
+_POLITE_REQUEST = r"^\s*(please\s+)?(can|could|would|will)\s+you\b"
+_PLAN = r"^\s*(please\s+)?plan\b|\b(make|write|draft|give me|come up with|create)\s+(me\s+)?(a\s+)?plan\b"
+_RUN = r"^\s*(run|rerun|re-run)\b"
+
+
 def is_resume_request(text: str) -> bool:
     """'resume what we were doing yesterday' and friends: handled by `dfm resume`."""
     return re.search(_RESUME, text.lower()) is not None
@@ -114,6 +139,8 @@ _EDIT_VERBS = (
     r"rewrite|resolve|make|support|introduce|extract|replace|optimi[sz]e|speed up|upgrade|bump|"
     r"handle|patch|repair|address|clean ?up)\b"
 )
+# A question followed by an instruction ("where is parse_config defined? rename it") is a change.
+_THEN_CHANGE = r"([.?!;]\s+(then\s+|also\s+|please\s+)?|\b(and\s+)?then\s+)" + _EDIT_VERBS
 _INVESTIGATE = r"\b(debug|investigate|diagnose|why\s+(is|does|do|did)|figure out|root cause)\b"
 _REVIEW = r"\b(review|audit|check)\s+(the\s+|my\s+|this\s+|current\s+)?(diff|changes|pr|pull request|code|branch|commit)\b|\bcode review\b|^\s*review\b"
 _CI = r"\b(ci|pipeline|workflow|github actions|build is (red|failing|broken))\b"
@@ -164,7 +191,8 @@ class Router:
                 "small" if ctx.override is Route.SMALL_CODER else "primary"
             )
             coder = tier if ctx.override in CODER_ROUTES else None
-            return RouteDecision(ctx.override, ("user override",), "override", 1.0, coder)
+            intent = Intent.MODIFY if ctx.override in CODER_ROUTES else Intent.INVESTIGATE
+            return RouteDecision(ctx.override, ("user override",), "override", 1.0, coder, intent)
 
         if _has(text, *_GIT_MUTATION):
             return RouteDecision(
@@ -173,13 +201,17 @@ class Router:
                 "deterministic",
                 0.95,
                 "primary",
+                Intent.GIT_CHANGE,
             )
 
         wants_change = _has(text, _EDIT_VERBS, _INVESTIGATE, _ISSUE) and not _has(
             text, r"^\s*git\s"
         )
         if _has(text, *_TOOLS_ONLY) and not wants_change:
-            return RouteDecision(Route.TOOLS_ONLY, ("answerable by tools",), "deterministic", 0.9)
+            intent = Intent.RUN if _has(text, _RUN) else Intent.INVESTIGATE
+            return RouteDecision(
+                Route.TOOLS_ONLY, ("answerable by tools",), "deterministic", 0.9, None, intent
+            )
         if _has(text, *_APPLE_TEXT):
             if ctx.diff_lines > APPLE_DIFF_LINE_LIMIT:
                 return RouteDecision(
@@ -188,6 +220,7 @@ class Router:
                     "deterministic",
                     0.8,
                     "small",
+                    Intent.INVESTIGATE,
                 )
             route = Route.APPLE if ctx.apple_available else Route.SMALL_CODER
             return RouteDecision(
@@ -196,12 +229,18 @@ class Router:
                 "deterministic",
                 0.9,
                 None if route is Route.APPLE else "small",
+                Intent.INVESTIGATE,
             )
         if _has(text, *_REPO_EXPLAIN):
             route = Route.APPLE if ctx.apple_available else Route.TOOLS_THEN_CODER
             reasons = ("repository explanation from RepoCanon + RepoKG facts",)
             return RouteDecision(
-                route, reasons, "deterministic", 0.85, None if route is Route.APPLE else "small"
+                route,
+                reasons,
+                "deterministic",
+                0.85,
+                None if route is Route.APPLE else "small",
+                Intent.INVESTIGATE,
             )
         if _has(text, _REVIEW):
             return RouteDecision(
@@ -210,7 +249,11 @@ class Router:
                 "deterministic",
                 0.85,
                 "primary",
+                Intent.REVIEW,
             )
+        read_only = self._read_only(text, request, ctx)
+        if read_only is not None:
+            return read_only
 
         ci = _has(text, _CI) and _has(text, r"\b(fix|failing|red|broken|green|repair)\b")
         tests = ctx.failing_tests or _has(text, _TESTS)
@@ -232,7 +275,45 @@ class Router:
             route = Route.APPLE_THEN_CODER
         else:
             route = Route.SMALL_CODER if tier == "small" else Route.PRIMARY_CODER
-        return RouteDecision(route, tuple(reasons), "deterministic", 0.8, tier)
+        return RouteDecision(route, tuple(reasons), "deterministic", 0.8, tier, Intent.MODIFY)
+
+    def _read_only(self, text: str, request: str, ctx: RoutingContext) -> RouteDecision | None:
+        """A plan, a question, or text that is a question only by its '?': read, never edit.
+
+        A question that reads like a change is answered read-only and says so; a real change
+        request ("can you fix it", "fix the failing tests") never matches here."""
+        tier = self._tier(text, ctx, ci=False, investigate=False)
+        if _has(text, _PLAN):
+            return RouteDecision(
+                Route.TOOLS_THEN_CODER,
+                ("plan: read-only, no edits",),
+                "deterministic",
+                0.85,
+                tier,
+                Intent.PLAN,
+            )
+        if _has(text, _POLITE_REQUEST) or _has(text, _THEN_CHANGE):
+            return None
+        if _has(text, _QUESTION_OPENING):
+            return RouteDecision(
+                Route.TOOLS_THEN_CODER,
+                ("question: answered by reading, no edits",),
+                "deterministic",
+                0.85,
+                tier,
+                Intent.INVESTIGATE,
+            )
+        if request.rstrip().endswith("?") and _has(text, _EDIT_VERBS, _INVESTIGATE, _TESTS):
+            return RouteDecision(
+                Route.TOOLS_THEN_CODER,
+                ("ambiguous: a question or a change; read as a question, no edits",),
+                "deterministic",
+                0.6,
+                tier,
+                Intent.INVESTIGATE,
+                ambiguous=True,
+            )
+        return None
 
     @staticmethod
     def _tier(text: str, ctx: RoutingContext, *, ci: bool, investigate: bool) -> Tier:
@@ -279,6 +360,7 @@ class Router:
             "apple",
             suggestion.confidence,
             coder,
+            Intent.MODIFY if suggestion.route in CODER_ROUTES else Intent.INVESTIGATE,
         )
 
     async def route(self, request: str, ctx: RoutingContext | None = None) -> RouteDecision:
@@ -293,6 +375,7 @@ class Router:
                 "fallback",
                 0.4,
                 "small",
+                Intent.INVESTIGATE,
             )
         if decision.source != "override":
             for adjust in self._adjusters:

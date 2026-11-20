@@ -81,6 +81,7 @@ def summarize(
     counts: dict[str, int] = defaultdict(int)
     context_items = context_chars = 0
     test_started: list[int] = []
+    intents: dict[str, int] = defaultdict(int)
     for event in events:
         kind = str(event.get("type"))
         counts[kind] += 1
@@ -91,6 +92,8 @@ def summarize(
                 counts["refused"] += 1
             elif "duration_ms" in event:
                 command_ms.append(float(event["duration_ms"]))
+        elif kind == "route_decision":
+            intents[str(event.get("intent") or "unknown")] += 1
         elif kind == "test_started":
             test_started.append(len(command_ms))
         elif kind == "test_finished" and test_started:
@@ -137,6 +140,7 @@ def summarize(
             "patches": counts["patch_finished"],
             "test_runs": counts["test_finished"],
         },
+        "routing": dict(intents),
         "repairs": int(explicit.pop("agent.repairs", 0)),
         "steps": int(explicit.pop("agent.steps", 0)),
         "metrics": dict(explicit),

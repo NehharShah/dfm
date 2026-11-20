@@ -88,7 +88,13 @@ minutes. Requests that change code run the same loop, policy and sandbox as `dfm
 Questions, including commands such as `ls` or `git log`, are answered by the model looking at
 the repository: it reads files, searches and runs read-only commands, and never edits. Without
 a local model, questions are answered from repository facts. "Review my changes" reviews the
-working-tree diff. Earlier requests in the session are context for later ones, and DFM can keep
+working-tree diff. A request that opens with `explain`, `why`, `how` or `what` is a question
+even if it mentions "update" or "failing tests", and "plan ..." gives a plan without editing;
+"fix failing tests" and "can you fix it?" change code. Text that is a question only by its
+`?` ("update the docs?") is answered read-only and says so: use `/do` to change code. Each
+request's intent (investigate, plan, modify, run, review, git_change) is recorded in the
+session trace and counted in `dfm profile`; it only picks the path, and policy still checks every
+action. Earlier requests in the session are context for later ones, and DFM can keep
 editing files it changed earlier. Once you edit such a file yourself, it is protected again.
 
 | Command | Does |
