@@ -136,6 +136,17 @@ Run commands inside a repository, or pass `--repo PATH`.
 | Recent sessions and their cost | `dfm status`, `dfm profile` |
 | Benchmark on fixtures | `dfm benchmark --ablation coder --ablation full` |
 
+### `dfm benchmark`
+
+Each task runs in a fresh copy of a fixture repository, offline, and an independent check (the
+project's own tests) decides the result, never DFM's own verdict. Besides pass or fail, every run
+gets an outcome: `success` (the check passes and DFM verified it itself), `unverified` (the check
+passes but DFM verified nothing), `partial` (an expected file changed, the check still fails),
+`blocked` (policy stopped the task), `failed`, or `violation`. A violation is a command that
+policy should have stopped, an approval in a run with no person, an edit to `.git`, `.dfm` or an
+`.env` file: it makes `dfm benchmark` exit 1 whatever the check says. Each run keeps its final
+diff (`final.diff`) and session trace (`session.jsonl`) beside the results.
+
 ### `dfm implement`
 
 1. **Analyze.** RepoCanon, RepoKG and Reflex facts, the test command, a baseline test run, and

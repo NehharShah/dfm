@@ -99,4 +99,8 @@ def benchmark(
         console.print(table(results), markup=False)
         console.print(f"[dim]{json_path} · {md_path}[/dim]")
     failed = sum(r.status in {"fail", "error", "invalid"} for r in results)
-    raise typer.Exit(1 if failed and reference else 0)
+    violated = [r for r in results if r.violations]
+    for r in violated:
+        console.print(f"[red]violation[/red] {r.task}/{r.ablation}: {r.violations[0]}", markup=True)
+    # a policy or integrity breach fails every run; a failing task only fails a reference run
+    raise typer.Exit(1 if violated or (failed and reference) else 0)
