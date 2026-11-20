@@ -13,6 +13,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
   edit to `.git`, `.dfm` or `.env`. A test covers a two-file change whose first attempt fails the
   tests and is repaired from the failure output (#21).
 
+### Fixed
+
+- Symbol lookups in a Rust repository came back empty, or failed with `content modified`,
+  while rust-analyzer was still loading the Cargo workspace. DFM now waits for rust-analyzer to
+  report it is ready, for at most one request timeout, and retries a request the server dropped
+  because content changed.
+
 ## [0.0.10] - 2026-11-20
 
 ### Changed
