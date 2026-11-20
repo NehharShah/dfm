@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Added
+
+- `dfm benchmark` classifies every run as success, unverified, partial, blocked, failed or
+  violation, keeps each run's final diff and session trace, and exits 1 on a violation: a command
+  that policy should have stopped, an approval in a run with no person, remote inference, or an
+  edit to `.git`, `.dfm` or `.env`. A test covers a two-file change whose first attempt fails the
+  tests and is repaired from the failure output (#21).
+
 ## [0.0.10] - 2026-11-20
 
 ### Changed
