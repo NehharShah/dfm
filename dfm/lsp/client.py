@@ -54,8 +54,16 @@ SYMBOL_KINDS = {
 }
 
 
+# LSP error code: the server dropped a request because the document or workspace changed
+# under it (rust-analyzer while it loads the Cargo workspace). The spec says to retry.
+CONTENT_MODIFIED = -32801
+_CONTENT_MODIFIED_RETRIES = 3
+
+
 class LspError(Exception):
-    pass
+    def __init__(self, message: str, code: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass(frozen=True)
@@ -125,6 +133,10 @@ class LspClient:
         self._versions: dict[str, int] = {}
         self.capabilities: dict[str, Any] = {}
         self.stderr_tail: list[str] = []
+        # Set once the server can answer from a loaded workspace. Servers that report status
+        # (`experimental/serverStatus`, rust-analyzer) answer empty until then, and do not
+        # say so in their capabilities: the spec declares it.
+        self._ready = asyncio.Event()
 
     # ---------------------------------------------------------------- lifecycle
 
@@ -168,12 +180,24 @@ class LspClient:
                     },
                     "workspace": {"workspaceFolders": True, "symbol": {}, "configuration": True},
                     "window": {"workDoneProgress": False},
+                    "experimental": {"serverStatusNotification": True},
                 },
             },
         )
         init: dict[str, Any] = cast(dict[str, Any], result) if isinstance(result, dict) else {}
         self.capabilities = cast(dict[str, Any], init.get("capabilities", {}))
+        if not self.spec.reports_status:
+            self._ready.set()  # no status reports to wait for
         await self.notify("initialized", {})
+
+    async def _wait_ready(self) -> None:
+        """Hold requests until the server reports it is quiescent, for at most one request
+        timeout; after that, go ahead (answers may be partial) rather than block the caller."""
+        if self._ready.is_set():
+            return
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(self._ready.wait(), self.timeout)
+        self._ready.set()
 
     async def close(self) -> None:
         if self._proc is None:
@@ -216,6 +240,18 @@ class LspClient:
             raise LspError(f"{self.spec.argv[0]} closed its input") from exc
 
     async def request(self, method: str, params: Any, *, timeout: float | None = None) -> Any:
+        if method not in {"initialize", "shutdown"}:
+            await self._wait_ready()
+        for attempt in range(_CONTENT_MODIFIED_RETRIES + 1):
+            try:
+                return await self._request_once(method, params, timeout)
+            except LspError as exc:
+                if exc.code != CONTENT_MODIFIED or attempt == _CONTENT_MODIFIED_RETRIES:
+                    raise
+                await asyncio.sleep(0.5 * (attempt + 1))
+        raise AssertionError("unreachable")  # pragma: no cover
+
+    async def _request_once(self, method: str, params: Any, timeout: float | None) -> Any:
         self._next_id += 1
         request_id = self._next_id
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
@@ -276,7 +312,12 @@ class LspClient:
             if future is not None and not future.done():
                 if "error" in message:
                     err = cast(dict[str, Any], message["error"])
-                    future.set_exception(LspError(f"{err.get('code')}: {err.get('message')}"))
+                    code = err.get("code")
+                    future.set_exception(
+                        LspError(
+                            f"{code}: {err.get('message')}", code if isinstance(code, int) else None
+                        )
+                    )
                 else:
                     future.set_result(message.get("result"))
             return
@@ -286,6 +327,10 @@ class LspClient:
             uri = str(params.get("uri"))
             self._diagnostics[uri] = cast(list[dict[str, Any]], params.get("diagnostics", []))
             self._diag_events.setdefault(uri, asyncio.Event()).set()
+        elif method == "experimental/serverStatus":
+            status = cast(dict[str, Any], message.get("params") or {})
+            if status.get("quiescent"):
+                self._ready.set()
         elif "id" in message:  # a request from the server: answer conservatively
             result: Any = None
             if method == "workspace/configuration":
