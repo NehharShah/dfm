@@ -5,6 +5,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Changed
+
+- Without a terminal (pipes, CI, `dfm ci`), a command that needs approval is refused with the ways
+  forward: run it yourself, approve it in an interactive session, or set the `network.*` key it
+  names. A hard confirmation says it is never allowed without typing the target. Before, the
+  reason was only "not approved", which a model read as a failure to retry (#20).
+- Approving `git checkout`, `switch`, `pull`, `merge`, `rebase`, `cherry-pick`, `reset`,
+  `restore` or `stash` now shows the uncommitted and untracked files in the working tree that the
+  command would carry or lose (#20).
+- Tests in `tests/test_workspace_permissions.py` pin the workspace boundary: routine edit, test,
+  format and read commands never ask; commands that discard work ask or need the target typed; reads
+  and writes outside the repository, network and remote writes are refused without a person; a
+  compound command gets no grant from its safe half; an approval covers one action (#20).
+
 ## [0.0.9] - 2026-11-20
 
 ### Fixed

@@ -503,7 +503,7 @@ _GIT_READ = {
 }
 
 
-def _git_sub(argv: list[str]) -> tuple[str, list[str]]:
+def git_subcommand(argv: list[str]) -> tuple[str, list[str]]:
     i = 1
     while i < len(argv) and argv[i].startswith("-"):
         i += 2 if argv[i] in _GIT_GLOBAL_WITH_VALUE else 1
@@ -573,7 +573,7 @@ def _expand_git_abbreviations(a: list[str]) -> list[str]:
 
 
 def rule_git(argv: list[str]) -> Part:
-    sub, rest = _git_sub(argv)
+    sub, rest = git_subcommand(argv)
     a = _expand_git_abbreviations(rest)  # rest[0] is the subcommand, so has()/positional() work
     pos = positional(a)
     global_opts = argv[: len(argv) - len(rest)] if rest else argv

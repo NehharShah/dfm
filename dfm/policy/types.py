@@ -91,6 +91,9 @@ class ProposedAction:
     # the whole (redacted) command this action is one part of, when it is a part of one: the
     # approver sees `git fetch origin && awk ...`, not only the part that asked
     command: str | None = None
+    # facts the approver should see that are not part of what is being approved (uncommitted
+    # files a branch switch would carry); not in the approval key
+    note: str | None = None
 
     def approval_key(self) -> str:
         return f"{self.kind}\x00{self.action_class}\x00{self.summary}\x00{self.target or ''}"

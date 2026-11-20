@@ -11,7 +11,8 @@ access.
 | `prompt is N tokens; limit L minus A for the answer` | A step did not fit the model's context even after DFM shortened the history. Free memory and start a new session, so the model loads with a larger context. |
 | `no coding model available (run dfm setup …)` | No local coder is configured. Run `dfm setup`. |
 | Apple FM unavailable | `fm available` must report the system model as ready (Apple Intelligence enabled). Without it, DFM routes by rules and uses the local coder for text. |
-| `refused by policy: … not approved` in a non-interactive run | Without a terminal, ask means deny. Run interactively, or allow the category in `~/.config/dfm/config.toml` ([policy](policy.md)). |
+| `needs approval and no one can be asked here` | Without a terminal, ask means deny, and the message says what to do: run the command yourself, approve it in an interactive session (`dfm`), or, for network access, set the `network.*` key it names in `~/.config/dfm/config.toml` ([policy](policy.md)). A hard confirmation (`git reset --hard`, `rm -rf`) is never allowed without typing its target. |
+| `not approved` | You answered no at a confirmation, or Ctrl-C. |
 | A plain command asks: `environment prefix may change what runs: FOO` | `FOO=1 cmd` asks unless `FOO` is on the benign list (`CI`, `NO_COLOR`, `LC_*`, …), because `PATH=`, `GIT_*` and `*_OPTIONS` prefixes can make a read run something else. Approve it, or drop the prefix. |
 | `cd without a path leaves the repository`, `alias … changes how the shell resolves later commands` | Bare `cd` goes to `$HOME`; `alias`/`export`/`hash`/`set` change what later commands mean. Both ask. Name the directory; set variables in your own shell. |
 | `… ignored, a repository cannot set this setting` or `may only tighten` | `<repo>/.dfm/config.toml` is an allowlist: tighten network, turn things off, lower limits. Put anything else in `~/.config/dfm/config.toml`. `dfm config show` lists each value's source. |

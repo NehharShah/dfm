@@ -58,7 +58,8 @@ _RANK = {Decision.ALLOW: 0, Decision.ASK: 1, Decision.DENY: 2}
 class Approval(StrEnum):
     ONCE = "once"
     SESSION = "session"  # only honoured for NORMAL confirmations
-    DENY = "deny"
+    DENY = "deny"  # a person was asked and said no
+    UNAVAILABLE = "unavailable"  # no one could be asked (no terminal); fails closed like DENY
 
 
 class Approver(Protocol):
@@ -66,10 +67,10 @@ class Approver(Protocol):
 
 
 class NonInteractiveApprover:
-    """No human present: every ASK becomes DENY."""
+    """No human present: every ASK becomes DENY, with the ways forward in the reason."""
 
     async def ask(self, action: ProposedAction, verdict: PolicyVerdict) -> Approval:
-        return Approval.DENY
+        return Approval.UNAVAILABLE
 
 
 class InteractiveApprover:
@@ -93,13 +94,15 @@ class InteractiveApprover:
 
     async def ask(self, action: ProposedAction, verdict: PolicyVerdict) -> Approval:
         if not self._is_tty():
-            return Approval.DENY
+            return Approval.UNAVAILABLE
         # Everything below except the class name comes from the model or the repository: shown
         # literally, so it cannot hide or restyle part of itself in the confirmation.
         self._console.print(
             f"[bold]{action.action_class}[/bold] proposed by {_shown(action.proposed_by)}: "
             f"{_shown(action.summary)}\n  reason: {_shown(verdict.reason)}"
         )
+        if action.note:
+            self._console.print(f"  note: {_shown(action.note)}")
         if action.command is not None:
             # the parts that were allowed without asking run in the same shell, with the same
             # network decision: the developer approves the line, not one word of it
@@ -131,6 +134,20 @@ def _shown(text: str) -> str:
 
 def hard_phrase(action: ProposedAction) -> str:
     return action.target or action.action_class.value
+
+
+def _alternatives(action: ProposedAction, verdict: PolicyVerdict) -> str:
+    """What the developer can do when nothing could ask them. Never suggests a way around a
+    hard confirmation: those are typed by a person, in a session, every time."""
+    run = "run it yourself, or start an interactive session (`dfm`) and approve it there"
+    if verdict.confirmation is Confirmation.HARD:
+        return f"{run}; it is never allowed without typing the target"
+    if action.network is not None:
+        return (
+            f"{run}; to allow this kind of access for every run, set "
+            f'network.{action.network.value} = "allow" in ~/.config/dfm/config.toml'
+        )
+    return f"{run}. Do not retry it or look for another way to the same effect"
 
 
 VerdictListener = Callable[[ProposedAction, PolicyVerdict], None]
@@ -264,6 +281,15 @@ class Policy:
 
     async def _ask(self, action: ProposedAction, verdict: PolicyVerdict) -> PolicyVerdict:
         approval = await self._approver.ask(action, verdict)
+        if approval is Approval.UNAVAILABLE:
+            return PolicyVerdict(
+                Decision.DENY,
+                action.action_class,
+                f"needs approval and no one can be asked here ({verdict.reason}); "
+                f"{_alternatives(action, verdict)}",
+                network=action.network,
+                approved_by="policy",
+            )
         if approval is Approval.DENY:
             return PolicyVerdict(
                 Decision.DENY,
