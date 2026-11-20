@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-11-19
+
 ### Fixed
 
 - A question that mentioned an edit verb or failing tests (`explain failing tests`, `why are
