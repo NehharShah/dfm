@@ -142,6 +142,18 @@ async def test_structured_retries_greedy_then_succeeds() -> None:
     assert "could not be used" in retry.messages[2].content and "route" in retry.messages[2].content
 
 
+async def test_a_retry_is_counted_but_a_clean_answer_is_not() -> None:
+    from dfm.observability.metrics import start
+
+    sink = start("retries")
+    clean = ScriptedModel('{"subject": "Fix add", "body": null}')
+    await structured(clean, GenerateRequest.prompt("x"), CommitMessage)
+    assert [p for p in sink.points if p["name"] == "model.structured_retries"] == []
+    retried = ScriptedModel("prose", '{"subject": "Fix add", "body": null}')
+    await structured(retried, GenerateRequest.prompt("x"), CommitMessage)
+    assert [p["value"] for p in sink.points if p["name"] == "model.structured_retries"] == [1.0]
+
+
 async def test_a_looped_reply_is_reported_as_a_loop() -> None:
     class Looping(ScriptedModel):
         async def generate(self, request: GenerateRequest) -> GenerateResult:
