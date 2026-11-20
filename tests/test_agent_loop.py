@@ -166,8 +166,46 @@ async def test_user_work_preserved(home: Path, repo: Path) -> None:
 async def test_malformed_model_output_fails_cleanly(home: Path, repo: Path) -> None:
     outcome, rt = await run_agent(repo, ScriptedCoder("I think we should fix it", "still prose"))
     assert outcome.status == "failed"
-    assert "coding model failed" in outcome.summary
+    assert "3 unusable replies in a row" in outcome.summary
     assert "failure" in event_types(rt)
+
+
+async def test_an_unusable_reply_is_fed_back_and_the_task_recovers(home: Path, repo: Path) -> None:
+    # each unusable step is two replies: the first and structured()'s own correction retry
+    coder = ScriptedCoder("prose", "prose", FIX, DONE)
+    outcome, rt = await run_agent(repo, coder)
+    assert outcome.status == "completed"
+    assert "could not be used" in coder.prompts[2] and "Nothing was run" in coder.prompts[2]
+    assert "unusable model reply (1 in a row)" in str(rt.store.load(rt.session.id).events)
+
+
+async def test_repeating_the_same_action_ends_with_that_as_the_reason(
+    home: Path, repo: Path
+) -> None:
+    look = {"action": "read", "reason": "look", "path": "src/calc/ops.py"}
+    coder = ScriptedCoder(look)
+    outcome, _ = await run_agent(repo, coder, max_steps=12)
+    assert outcome.status == "failed"
+    assert (
+        outcome.summary == "the model repeated `read src/calc/ops.py` with the same result 3 times"
+    )
+    assert len(coder.prompts) == 3  # not the whole step budget
+    assert "same action with the same result" in coder.prompts[2]
+
+
+async def test_an_edit_that_undoes_an_earlier_one_is_called_out(home: Path, repo: Path) -> None:
+    flip = {
+        "action": "patch",
+        "reason": "swap",
+        "path": "src/calc/ops.py",
+        "search": "return a - b",
+        "replace": "return a + b",
+    }
+    flop = {**flip, "search": "return a + b", "replace": "return a - b"}
+    coder = ScriptedCoder(flip, flop, flip, flop, DONE)
+    outcome, _ = await run_agent(repo, coder, max_steps=12)
+    assert any("undoes an earlier one" in p for p in coder.prompts)
+    assert outcome.status == "failed" and "repeated" in outcome.summary
 
 
 async def test_without_a_coder(home: Path, repo: Path) -> None:
@@ -258,8 +296,12 @@ async def test_the_token_budget_boundary(
 
 
 async def test_the_step_limit_stops_a_task(home: Path, repo: Path) -> None:
-    look = {"action": "read", "reason": "look", "path": "src/calc/ops.py"}
-    outcome, _ = await run_agent(repo, ScriptedCoder(look), max_steps=3)
+    # different ranges, so each read is new evidence and repetition detection stays quiet
+    looks = [
+        {"action": "read", "reason": "look", "path": "src/calc/ops.py", "start": n, "end": n}
+        for n in (1, 2, 3)
+    ]
+    outcome, _ = await run_agent(repo, ScriptedCoder(*looks), max_steps=3)
     assert outcome.status == "failed" and outcome.summary == "stopped after 3 steps"
     assert outcome.steps == 3
 

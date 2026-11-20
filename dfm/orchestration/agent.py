@@ -35,6 +35,7 @@ from dfm.models.base import (
     Model,
     ModelError,
     Reasoning,
+    StructuredOutputError,
 )
 from dfm.models.structured import structured
 from dfm.observability.metrics import metric
@@ -114,6 +115,8 @@ ACTION_TOOLS: tuple[dict[str, Any], ...] = (
     _tool("give_up", "You are blocked; say what is missing.", summary="str"),
 )
 THINKING_BUDGET = {"low": 512, "medium": 1536, "high": 3072}  # tokens per step
+MAX_INVALID_REPLIES = 2  # unusable replies in a row that the model may recover from
+MAX_REPEATS = 2  # an identical action with an identical result, beyond the first time
 HISTORY_CHARS = 16_000  # beyond this, the oldest steps are compacted to one line each
 HISTORY_KEEP_CHARS = 8_000  # what compaction keeps verbatim
 
@@ -961,6 +964,10 @@ class AgentLoop:
         repairs = 0
         no_progress = 0
         last_signature: str | None = None
+        invalid_streak = 0  # unusable replies in a row
+        repeated = 0  # consecutive steps that repeat an earlier action and its result
+        seen: set[tuple[object, ...]] = set()
+        applied: set[tuple[str, str, str]] = set()
         summary = ""
         finished: Literal["done", "give_up", "budget", "model", "no_progress"] = "budget"
         steps = 0
@@ -976,11 +983,33 @@ class AgentLoop:
                 break
             try:
                 action = await self._next_action(request, step)
+            except StructuredOutputError as exc:
+                # An unusable reply is not run. The model is told, and tries again a bounded
+                # number of times before the task ends with that as the reason.
+                invalid_streak += 1
+                metric("agent.invalid_actions", 1)
+                reason = str(exc)[:300]
+                self.rt.event(
+                    "note", text=f"step {step}: unusable model reply ({invalid_streak} in a row)"
+                )
+                if invalid_streak > MAX_INVALID_REPLIES:
+                    summary = f"the coding model gave {invalid_streak} unusable replies in a row: {reason}"
+                    self.rt.event("failure", stage="act", error=summary)
+                    finished = "model"
+                    break
+                self.history.append(
+                    f"Step {step}: your reply could not be used ({reason}). Nothing was run. "
+                    "Reply with exactly one valid action."
+                )
+                continue
             except ModelError as exc:
                 summary = f"coding model failed: {exc}"
                 self.rt.event("failure", stage="act", error=summary)
                 finished = "model"
                 break
+            if invalid_streak:
+                metric("agent.recoveries", 1)
+                invalid_streak = 0
             if action.action == "done" or action.action == "give_up":
                 summary = action.summary or action.reason
                 finished = "done" if action.action == "done" else "give_up"
@@ -990,6 +1019,48 @@ class AgentLoop:
             except ToolError as exc:
                 observation = f"error: {exc}"
             self._observe(step, action, observation)
+            key = (
+                action.action,
+                action.path,
+                action.start,
+                action.end,
+                action.pattern,
+                action.command,
+                action.search,
+                action.replace,
+                observation[:2000],
+            )
+            if key in seen:
+                repeated += 1
+                if repeated >= MAX_REPEATS:
+                    finished = "no_progress"
+                    target = action.path or action.pattern or action.command or ""
+                    summary = (
+                        f"the model repeated `{action.action} {target}` with the same result "
+                        f"{repeated + 1} times"
+                    )
+                    break
+                self.history.append(
+                    "That is the same action with the same result. Do something different, "
+                    "or finish with give_up."
+                )
+            else:
+                repeated = 0
+                seen.add(key)
+            if (
+                action.action == "patch"
+                and observation.startswith("patched")
+                and action.path
+                and action.search is not None
+                and action.replace is not None
+            ):
+                if (action.path, action.replace, action.search) in applied:
+                    # a cycle ends through the repeat check; this tells the model earlier
+                    self.history.append(
+                        "That edit undoes an earlier one. Re-read the failure and try a "
+                        "different approach."
+                    )
+                applied.add((action.path, action.search, action.replace))
             if action.action in {"patch", "create"} and observation.startswith(
                 ("patched", "created")
             ):

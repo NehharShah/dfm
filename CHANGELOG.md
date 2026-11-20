@@ -5,6 +5,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Fixed
+
+- One unusable model reply (prose instead of an action) ended the whole task with "coding model
+  failed". It is now told what was wrong, nothing is run, and the model gets two more tries in a
+  row before the task ends saying so. A model that repeats the same action with the same result
+  three times ends the task with that action named, instead of using up every step; an edit that
+  undoes an earlier one is pointed out. `dfm profile` shows how many replies were unusable and
+  how many recovered (#19).
+
 ## [0.0.8] - 2026-11-19
 
 ### Fixed

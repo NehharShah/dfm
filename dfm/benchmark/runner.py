@@ -58,7 +58,7 @@ ABLATIONS: dict[str, dict[str, Any]] = {
 }
 
 
-_NO_CODER = ("coding model failed", "no coding model")
+_NO_CODER = ("coding model failed", "no coding model", "the coding model gave")
 _CANNOT_RUN = (
     "command not found",
     "could not choose a version",

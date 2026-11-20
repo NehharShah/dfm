@@ -112,6 +112,13 @@ def profile(
         f"  tool calls: {tools['commands']} commands ({tools['refused']} refused), {tools['file_reads']} reads, {tools['patches']} patches, {tools['test_runs']} test runs"
     )
     console.print(f"  steps: {data['steps']} · repairs: {data['repairs']}")
+    extra = cast(dict[str, float], data.get("metrics") or {})
+    invalid, recovered = (
+        int(extra.get("agent.invalid_actions", 0)),
+        int(extra.get("agent.recoveries", 0)),
+    )
+    if invalid:
+        console.print(f"  unusable model replies: {invalid} · recovered: {recovered}")
     routing = cast(dict[str, int], data.get("routing") or {})
     if routing:
         shown = ", ".join(f"{name} {count}" for name, count in sorted(routing.items()))
