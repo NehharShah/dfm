@@ -7,6 +7,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ### Fixed
 
+- A command that timed out reached the model as `exit -2` with no output, so a hang looked like
+  a failure. It now says it timed out, after how long, and that it was stopped.
+- The model saw the start of a long command's output, not its end, where the error or summary
+  is. It now sees the last part.
+- After an interruption, a resumed task could run a command again that had already changed
+  things (a build step, `touch`, an install). DFM now records each command that is not read-only,
+  tells the resumed session which ones already ran, and does not run an identical one again
+  unless the developer decides. `dfm profile` also shows how many times a reply had to be
+  retried for its format (#19).
+
+### Fixed
+
 - One unusable model reply (prose instead of an action) ended the whole task with "coding model
   failed". It is now told what was wrong, nothing is run, and the model gets two more tries in a
   row before the task ends saying so. A model that repeats the same action with the same result

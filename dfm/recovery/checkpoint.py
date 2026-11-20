@@ -30,6 +30,7 @@ class Stage(StrEnum):
     ANALYSIS = "analysis"
     PLAN = "plan"
     EDIT = "edit"
+    COMMAND = "command"  # a command that can change things ran: it is not run again on resume
     TEST = "test"
     REPAIR = "repair"
     VERIFICATION = "verification"

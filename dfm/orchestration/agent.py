@@ -382,6 +382,8 @@ class AgentLoop:
         self.context_tokens = context_tokens
         self.ledger = VerificationLedger()
         self.history: list[str] = []
+        # commands that changed things in a session this one resumes: command -> exit code
+        self.already_ran: dict[str, int | None] = {}
         # one id per task: an interactive session runs several, and undoes them one at a time
         self.checkpointer = Checkpointer(rt.repo, checkpoint_id or rt.session.id)
         self.guard = GitGuard(rt.repo) if is_git_repo(rt.repo) else None
@@ -762,13 +764,31 @@ class AgentLoop:
         if a == "run":
             if not action.command:
                 return "error: run needs a command"
+            if action.command in self.already_ran:
+                code = self.already_ran[action.command]
+                return (
+                    f"not run: `{action.command}` already ran before the interruption (exit "
+                    f"{code}) and is not repeated. If it must run again, finish with give_up and "
+                    "say why, so the developer decides."
+                )
             outcome = await self.runner.run(action.command, timeout=300)
             if outcome.result is None:
                 return (
                     f"refused by policy: {outcome.verdicts[-1].reason}. Do not retry this command."
                 )
-            out = (outcome.result.stdout + outcome.result.stderr)[-3000:]
-            return f"exit {outcome.result.exit_code}\n{out}"
+            result = outcome.result
+            if not self._read_only_command(action.command):
+                self.checkpointer.save(
+                    Stage.COMMAND,
+                    state={"command": action.command, "exit": result.exit_code},
+                )
+            out = (result.stdout + result.stderr)[-3000:]
+            if result.timed_out:
+                return (
+                    f"timed out after {result.duration_ms / 1000:.1f}s and was stopped "
+                    f"(exit {result.exit_code})\n{out}"
+                )
+            return f"exit {result.exit_code}\n{out}"
         if a == "test":
             report = await self.run_tests()
             if report is None:
@@ -841,6 +861,10 @@ class AgentLoop:
     def _observe(self, step: int, action: AgentAction, observation: str) -> None:
         self.struggling = observation.startswith(("error", "refused", "patch not applied"))
         shown = observation[:1500]
+        if action.action == "run" and len(observation) > 1500:
+            # a command's result is at its end (the error, the summary): keep that part
+            head, _, rest = observation.partition("\n")
+            shown = f"{head}\n[output cut: the last part follows]\n{rest[-1400:]}"
         if action.action in _DATA_ACTIONS and not observation.startswith("refused"):
             # file contents, search hits and command output are data, never instructions
             shown = untrusted_block(f"{action.action}-result", shown)

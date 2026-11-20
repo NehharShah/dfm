@@ -21,7 +21,7 @@ from dfm.orchestration.agent import AgentLoop, TaskOutcome
 from dfm.orchestration.runtime import Runtime
 from dfm.processes import ProcessManager
 from dfm.processes.manager import pid_alive
-from dfm.recovery import Checkpointer
+from dfm.recovery import Checkpointer, Stage
 from dfm.recovery.reconcile import Reconciliation, reconcile
 from dfm.routing import RoutingContext
 from dfm.sessions import SessionStore, SessionSummary
@@ -119,6 +119,13 @@ async def resume(
         lines.append(reconciliation.report())
         for orphan in reconciliation.orphans:
             await ProcessManager(rt.pm.registry).stop(orphan.id)
+    ran: dict[str, int | None] = {}
+    for earlier in Checkpointer(rt.repo, previous.id).all():
+        if earlier.stage is Stage.COMMAND and isinstance(earlier.state.get("command"), str):
+            ran[earlier.state["command"]] = earlier.state.get("exit")
+    if ran:
+        lines.append("Commands that already ran before the interruption (not repeated):")
+        lines.extend(f"- `{command}` (exit {code})" for command, code in ran.items())
     patches = recover_worktrees(rt, previous.id)
     for patch in patches:
         lines.append(f"- recovered an abandoned worktree as a patch: git apply {patch}")
@@ -146,5 +153,6 @@ async def resume(
     planned: set[str] = set(reconciliation.intact) if reconciliation is not None else set()
     loop = AgentLoop(rt, coder=coder, max_steps=max_steps, planned_paths=planned)
     loop.history.append(summary)
+    loop.already_ran = ran
     outcome = await loop.run(previous.request)
     return ResumeResult(previous, reconciliation, outcome, summary, patches)

@@ -113,12 +113,14 @@ def profile(
     )
     console.print(f"  steps: {data['steps']} · repairs: {data['repairs']}")
     extra = cast(dict[str, float], data.get("metrics") or {})
-    invalid, recovered = (
-        int(extra.get("agent.invalid_actions", 0)),
-        int(extra.get("agent.recoveries", 0)),
-    )
-    if invalid:
-        console.print(f"  unusable model replies: {invalid} · recovered: {recovered}")
+    invalid = int(extra.get("agent.invalid_actions", 0))
+    recovered = int(extra.get("agent.recoveries", 0))
+    retries = int(extra.get("model.structured_retries", 0))
+    if invalid or retries:
+        console.print(
+            f"  unusable model replies: {invalid} · recovered: {recovered} · "
+            f"format retries: {retries}"
+        )
     routing = cast(dict[str, int], data.get("routing") or {})
     if routing:
         shown = ", ".join(f"{name} {count}" for name, count in sorted(routing.items()))

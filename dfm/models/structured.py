@@ -94,7 +94,7 @@ async def structured[T: BaseModel](model: Model, request: GenerateRequest, out: 
     )
     attempt_request = request
     last: Exception | None = None
-    for _ in range(2):
+    for attempt in range(2):
         result: GenerateResult | None = None
         try:
             result = await model.generate(attempt_request)
@@ -102,6 +102,8 @@ async def structured[T: BaseModel](model: Model, request: GenerateRequest, out: 
             return out.model_validate(_parse(result))
         except (StructuredOutputError, ValidationError) as exc:
             last = exc
+            if attempt == 0:  # one more try follows
+                metric("model.structured_retries", 1, model=model.name)
             how = (
                 "with exactly one call to one of the provided functions"
                 if request.tools
