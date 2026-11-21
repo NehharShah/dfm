@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+## [0.0.11] - 2026-11-21
+
 ### Added
 
 - `dfm benchmark` classifies every run as success, unverified, partial, blocked, failed or
