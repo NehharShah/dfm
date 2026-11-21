@@ -1,5 +1,6 @@
 """`dfm benchmark`: ablation benchmarks over fixture tasks."""
 
+from dfm.benchmark import baseline
 from dfm.benchmark.runner import (
     ABLATIONS,
     OUTCOMES,
@@ -22,6 +23,7 @@ __all__ = [
     "BenchTask",
     "ReferenceCoder",
     "RunResult",
+    "baseline",
     "classify_outcome",
     "integrity_violations",
     "run_suite",
