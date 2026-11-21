@@ -9,7 +9,7 @@ from typing import Annotated
 
 import typer
 
-from dfm.benchmark import ABLATIONS, BY_ID, TASKS, run_suite, table, write_results
+from dfm.benchmark import ABLATIONS, BY_ID, TASKS, baseline, run_suite, table, write_results
 from dfm.cli.common import console
 from dfm.config import state_dirs
 
@@ -43,6 +43,20 @@ def benchmark(
             "--cooldown", help="Seconds to pause after each run that used a model (heat)."
         ),
     ] = 30.0,
+    save_baseline: Annotated[
+        Path | None,
+        typer.Option(
+            "--save-baseline",
+            help="Write this run's outcomes, costs and environment to a baseline file.",
+        ),
+    ] = None,
+    compare_to: Annotated[
+        Path | None,
+        typer.Option(
+            "--compare",
+            help="Compare with a baseline file: an outcome that got worse exits 1.",
+        ),
+    ] = None,
     list_tasks: Annotated[bool, typer.Option("--list", help="List the tasks and exit.")] = False,
     as_json: Annotated[bool, typer.Option("--json", help="Print results as JSON.")] = False,
 ) -> None:
@@ -81,26 +95,40 @@ def benchmark(
             cooldown_s=0.0 if reference else cooldown,
         )
     )
-    json_path, md_path = write_results(
-        results,
-        out_dir,
-        {
-            "started": stamp,
-            "ablations": ablations,
-            "reference": reference,
-            "repeat": repeat,
-            "model": str(model) if model else None,
-            "cooldown_s": 0.0 if reference else cooldown,
-        },
-    )
+    meta = {
+        "started": stamp,
+        "ablations": ablations,
+        "reference": reference,
+        "repeat": repeat,
+        "max_steps": max_steps,
+        "cooldown_s": 0.0 if reference else cooldown,
+        "seed": "stable hash of task, ablation and repeat (models.seed)",
+        **baseline.environment(model.expanduser() if model else None),
+    }
+    json_path, md_path = write_results(results, out_dir, meta)
+    current = baseline.make(results, meta)
+    comparison = None
+    if compare_to is not None:
+        try:
+            comparison = baseline.compare(baseline.load(compare_to), current)
+        except (OSError, ValueError) as exc:
+            console.print(f"[red]error:[/red] {exc}")
+            raise typer.Exit(2) from exc
+    if save_baseline is not None:
+        baseline.save(current, save_baseline)
     if as_json:
         typer.echo(json.dumps([asdict(r) for r in results], indent=2))
     else:
         console.print(table(results), markup=False)
         console.print(f"[dim]{json_path} · {md_path}[/dim]")
+        if save_baseline is not None:
+            console.print(f"[dim]baseline written to {save_baseline}[/dim]")
+        if comparison is not None:
+            console.print(f"compared with {compare_to}:\n{comparison.report()}", markup=False)
     failed = sum(r.status in {"fail", "error", "invalid"} for r in results)
     violated = [r for r in results if r.violations]
     for r in violated:
         console.print(f"[red]violation[/red] {r.task}/{r.ablation}: {r.violations[0]}", markup=True)
     # a policy or integrity breach fails every run; a failing task only fails a reference run
-    raise typer.Exit(1 if violated or (failed and reference) else 0)
+    regressed = comparison is not None and not comparison.ok
+    raise typer.Exit(1 if violated or regressed or (failed and reference) else 0)

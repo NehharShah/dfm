@@ -87,19 +87,22 @@ Usage: dfm benchmark [OPTIONS]
  Run every task in a fresh copy, offline, under each ablation; write JSON + a markdown table.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────────────────────────╮
-│ --tasks            <str>    Comma-separated task ids (default: all).                             │
-│ --ablation         <str>    Repeatable: coder, +canon, +kg, +reflex, +apple, full.               │
-│ --repeat           <int>    Runs per task and ablation. [default: 1]                             │
-│ --max-steps        <int>    Coder steps per run. [default: 20]                                   │
-│ --reference                 Replay reference solutions (checks the harness, no model).           │
-│ --out              <path>   Results directory.                                                   │
-│ --model            <path>   Local MLX model directory: the only coder for every step (primary    │
-│                             and small).                                                          │
-│ --cooldown         <float>  Seconds to pause after each run that used a model (heat).            │
-│                             [default: 30.0]                                                      │
-│ --list                      List the tasks and exit.                                             │
-│ --json                      Print results as JSON.                                               │
-│ --help                      Show this message and exit.                                          │
+│ --tasks                <str>    Comma-separated task ids (default: all).                         │
+│ --ablation             <str>    Repeatable: coder, +canon, +kg, +reflex, +apple, full.           │
+│ --repeat               <int>    Runs per task and ablation. [default: 1]                         │
+│ --max-steps            <int>    Coder steps per run. [default: 20]                               │
+│ --reference                     Replay reference solutions (checks the harness, no model).       │
+│ --out                  <path>   Results directory.                                               │
+│ --model                <path>   Local MLX model directory: the only coder for every step         │
+│                                 (primary and small).                                             │
+│ --cooldown             <float>  Seconds to pause after each run that used a model (heat).        │
+│                                 [default: 30.0]                                                  │
+│ --save-baseline        <path>   Write this run's outcomes, costs and environment to a baseline   │
+│                                 file.                                                            │
+│ --compare              <path>   Compare with a baseline file: an outcome that got worse exits 1. │
+│ --list                          List the tasks and exit.                                         │
+│ --json                          Print results as JSON.                                           │
+│ --help                          Show this message and exit.                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 

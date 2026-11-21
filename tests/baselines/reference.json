@@ -1,0 +1,266 @@
+{
+ "cells": {
+  "architecture-refactor|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 1.0,
+   "runs": 1,
+   "steps": 3.0,
+   "tokens_out": 0,
+   "wall_s": 2.1,
+   "worst": "success"
+  },
+  "architecture-refactor|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 1.0,
+   "runs": 1,
+   "steps": 3.0,
+   "tokens_out": 0,
+   "wall_s": 2.7,
+   "worst": "success"
+  },
+  "ci-failure|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 2.9,
+   "worst": "success"
+  },
+  "ci-failure|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 3.5,
+   "worst": "success"
+  },
+  "go-refactor|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 1.0,
+   "runs": 1,
+   "steps": 3.0,
+   "tokens_out": 0,
+   "wall_s": 1.4,
+   "worst": "success"
+  },
+  "go-refactor|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 1.0,
+   "runs": 1,
+   "steps": 3.0,
+   "tokens_out": 0,
+   "wall_s": 1.4,
+   "worst": "success"
+  },
+  "large-log-debugging|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.7,
+   "worst": "success"
+  },
+  "large-log-debugging|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 2.3,
+   "worst": "success"
+  },
+  "monorepo-edit|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 0.8,
+   "worst": "success"
+  },
+  "monorepo-edit|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.3,
+   "worst": "success"
+  },
+  "python-bug|coder": {
+   "memory_peak_mb": 97,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.6,
+   "worst": "success"
+  },
+  "python-bug|full": {
+   "memory_peak_mb": 109,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 2.4,
+   "worst": "success"
+  },
+  "review-comment-repair|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 1.0,
+   "runs": 1,
+   "steps": 3.0,
+   "tokens_out": 0,
+   "wall_s": 2.1,
+   "worst": "success"
+  },
+  "review-comment-repair|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 1.0,
+   "runs": 1,
+   "steps": 3.0,
+   "tokens_out": 0,
+   "wall_s": 2.7,
+   "worst": "success"
+  },
+  "rust-compiler|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.0,
+   "worst": "success"
+  },
+  "rust-compiler|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.3,
+   "worst": "success"
+  },
+  "security-regression|coder": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.6,
+   "worst": "success"
+  },
+  "security-regression|full": {
+   "memory_peak_mb": 117,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 2.2,
+   "worst": "success"
+  },
+  "ts-feature|coder": {
+   "memory_peak_mb": 109,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 0.8,
+   "worst": "success"
+  },
+  "ts-feature|full": {
+   "memory_peak_mb": 109,
+   "outcomes": {
+    "success": 1
+   },
+   "repairs": 0.0,
+   "runs": 1,
+   "steps": 2.0,
+   "tokens_out": 0,
+   "wall_s": 1.5,
+   "worst": "success"
+  }
+ },
+ "meta": {
+  "ablations": [
+   "coder",
+   "full"
+  ],
+  "cooldown_s": 0.0,
+  "dfm_version": "0.0.11",
+  "hardware": {
+   "chip": "Apple M5 Pro",
+   "macos": "27.0.1",
+   "memory_gb": 48
+  },
+  "max_steps": 20,
+  "model": null,
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "python": "3.13.16",
+  "reference": true,
+  "repeat": 1,
+  "seed": "stable hash of task, ablation and repeat (models.seed)",
+  "started": "20261121T152621"
+ },
+ "schema": 1
+}

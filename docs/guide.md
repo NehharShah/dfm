@@ -147,6 +147,18 @@ policy should have stopped, an approval in a run with no person, an edit to `.gi
 `.env` file: it makes `dfm benchmark` exit 1 whatever the check says. Each run keeps its final
 diff (`final.diff`) and session trace (`session.jsonl`) beside the results.
 
+`--save-baseline FILE` writes what the run came to (per task and ablation: outcomes, mean steps,
+output tokens, repairs, peak memory) with its environment: DFM version, Python, chip and memory,
+the model and its quantization, repeat count, cooldown and the seed rule. `--compare FILE` checks
+a later run against it: an outcome that got worse, or any violation, exits 1; a cost that grew by
+half or more (steps, tokens, repairs) is reported as drift and does not fail, because those
+counts move with sampling. Cells one side did not run are listed, not failed. `tests/baselines/reference.json`
+is the committed baseline of the reference solutions: a test runs them again on every change.
+When a change legitimately alters it, regenerate it with `dfm benchmark --reference --ablation
+coder --ablation full --save-baseline tests/baselines/reference.json` and say why in the PR.
+For a local model, keep your own baseline per DFM version and model (the Qwen3.5-9B 4-bit run on
+an M5 Pro in #21 is the first one to record) and compare each release with it.
+
 ### `dfm implement`
 
 1. **Analyze.** RepoCanon, RepoKG and Reflex facts, the test command, a baseline test run, and

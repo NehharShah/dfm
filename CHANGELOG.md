@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning:
 
 ## [Unreleased]
 
+### Added
+
+- `dfm benchmark --save-baseline FILE` records a run's outcomes, costs and environment (DFM
+  version, machine, model and quantization, repeats, cooldown, seed rule), and `--compare FILE`
+  checks a later run against it: a worse outcome or any violation exits 1, a cost that grew by
+  half is reported as drift. `tests/baselines/reference.json` is the committed baseline of the
+  fixtures' reference solutions, and a test fails when this version no longer meets it (#21).
+
 ## [0.0.11] - 2026-11-21
 
 ### Added
